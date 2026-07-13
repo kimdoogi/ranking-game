@@ -119,32 +119,39 @@
   }
   .subtitle { color: #b8b8d8; font-size: clamp(14px,3.5vw,18px); margin-bottom: 26px; font-weight: 600; }
 
-  .control { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .control { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 18px; }
   .control label { font-weight: 800; font-size: 16px; color: #cfcff0; }
-  .countRow { display: flex; align-items: center; gap: 18px; }
-  .stepBtn {
-    width: 52px; height: 52px; border-radius: 16px; border: none; cursor: pointer;
-    background: rgba(255,255,255,.1); color: #fff; font-size: 28px; font-weight: 900;
-    transition: transform .08s, background .15s;
-  }
-  .stepBtn:active { transform: scale(.9); }
-  .stepBtn:hover { background: rgba(255,255,255,.18); }
-  #countVal { font-size: 46px; font-weight: 900; min-width: 110px; color: #ffd23f; text-shadow: 0 0 18px rgba(255,210,63,.5); }
-  .presets { display: flex; gap: 8px; }
+  .control label .hint { display:block; margin-top:3px; opacity:.6; font-size:12px; font-weight:600; }
+  .control label b { color:#ffd23f; }
+  .presets { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
   .preset {
     cursor: pointer; border: 1px solid rgba(255,255,255,.18); border-radius: 10px;
-    background: rgba(255,255,255,.08); color: #cfcff0; font-weight: 800; font-size: 14px;
-    padding: 6px 14px; transition: background .15s;
+    background: rgba(255,255,255,.08); color: #cfcff0; font-weight: 800; font-size: 13px;
+    padding: 6px 12px; transition: background .15s;
   }
   .preset:hover { background: rgba(255,255,255,.16); }
   #nameBox {
-    width: min(340px, 84vw); height: 96px; resize: none;
+    width: min(340px, 84vw); height: 74px; resize: none;
     background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14);
-    border-radius: 12px; color: #fff; font-weight: 700; font-size: 14px;
-    padding: 10px 12px; font-family: inherit; outline: none;
+    border-radius: 12px; color: #fff; font-weight: 700; font-size: 14px; line-height:1.5;
+    padding: 9px 12px; font-family: inherit; outline: none;
   }
   #nameBox::placeholder { color: rgba(200,200,230,.45); }
   #nameBox:focus { border-color: rgba(255,210,63,.5); }
+  .lobbyWrap { position: relative; width: min(340px, 84vw); }
+  #lobbyCanvas {
+    width: 100%; height: 150px; display:block;
+    background: radial-gradient(ellipse at center, rgba(30,24,60,.55), rgba(8,8,20,.6));
+    border: 1px solid rgba(255,255,255,.12); border-radius: 14px;
+  }
+  .lobbyCount {
+    position:absolute; top:8px; right:10px; pointer-events:none;
+    font-weight:900; font-size:14px; color:#ffd23f;
+    background: rgba(0,0,0,.42); padding:3px 11px; border-radius:999px;
+    text-shadow:0 0 10px rgba(255,210,63,.5);
+  }
+  .lobbyHint { font-size:12.5px; font-weight:700; color:#9fa0c8; min-height:16px; }
+  .playBtn:disabled { opacity:.4; cursor:not-allowed; box-shadow:none; }
 
   .playBtn {
     cursor: pointer; border: none; border-radius: 20px;
@@ -201,22 +208,19 @@
   <div class="title">장애물<br>대탈주</div>
   <div class="subtitle">해머, 크러셔, 진흙탕을 뚫고 결승선까지! 최대 300명 🏁</div>
   <div class="control">
-    <label>참가 인원</label>
-    <div class="countRow">
-      <button class="stepBtn" id="minus">−</button>
-      <div id="countVal">30</div>
-      <button class="stepBtn" id="plus">+</button>
-    </div>
+    <label>참가자 추가 <span class="hint">한 줄에 하나 · <b>이름 * 4</b> 처럼 인원 지정 · 최대 300명</span></label>
+    <textarea id="nameBox" placeholder="예)&#10;김두기 * 4&#10;홍길동&#10;봇 * 100"></textarea>
     <div class="presets">
-      <button class="preset" data-n="12">12</button>
-      <button class="preset" data-n="50">50</button>
-      <button class="preset" data-n="100">100</button>
-      <button class="preset" data-n="300">300</button>
+      <button class="preset" data-n="12">봇 +12</button>
+      <button class="preset" data-n="50">봇 +50</button>
+      <button class="preset" data-n="100">봇 +100</button>
+      <button class="preset" data-n="300">봇 +300</button>
     </div>
-  </div>
-  <div class="control">
-    <label>이름 입력 <span style="opacity:.55;font-size:13px;font-weight:600">(선택 · 한 줄에 하나 · 중복 OK — 같은 이름은 쌍둥이!)</span></label>
-    <textarea id="nameBox" placeholder="비워두면 번호로 참가해요&#10;4명 이상 적으면 인원도 자동으로 맞춰져요"></textarea>
+    <div class="lobbyWrap">
+      <canvas id="lobbyCanvas"></canvas>
+      <div class="lobbyCount"><span id="countVal">0</span>명</div>
+    </div>
+    <div class="lobbyHint" id="lobbyHint"></div>
   </div>
   <button class="playBtn" id="startBtn">▶ 출발!</button>
 </div>
@@ -1541,23 +1545,141 @@
     ws.classList.remove('hidden');
   }
 
-  // ---------- UI ----------
+  // ---------- Lobby: name-driven roster + live start-grid preview ----------
+  const MAXN = 300, MIN_START = 2;
+  const nameBox = document.getElementById('nameBox');
   const countVal = document.getElementById('countVal');
-  function setCount(n) { playerCount = clamp(n, 4, 300); countVal.textContent = playerCount; }
-  document.getElementById('minus').onclick = () => setCount(playerCount - (playerCount > 60 ? 10 : 1));
-  document.getElementById('plus').onclick  = () => setCount(playerCount + (playerCount >= 60 ? 10 : 1));
-  document.querySelectorAll('.preset').forEach(b => b.onclick = () => setCount(+b.dataset.n));
+  const lobbyHint = document.getElementById('lobbyHint');
+  const startBtn = document.getElementById('startBtn');
+  const startScreen = document.getElementById('startScreen');
+  const lobbyCanvas = document.getElementById('lobbyCanvas');
+  const lctx = lobbyCanvas.getContext('2d');
+  let roster = [], dots = [], createdCount = 0, lobbyT = 0, lobbyRAF = 0, lobbyR = 6, gridCols = 8;
+
+  // "이름 * 4" / "이름 x4" / "이름 ×4" → 4명.  곱하기 없으면 1명.
+  function parseRoster(text) {
+    const out = [];
+    for (const raw of text.split('\n')) {
+      const line = raw.trim(); if (!line) continue;
+      let name = line, count = 1;
+      const m = line.match(/^(.+?)\s*[*xX×]\s*(\d+)\s*$/);
+      if (m) { name = m[1].trim(); count = parseInt(m[2], 10) || 1; }
+      name = name.slice(0, 8); if (!name) continue;
+      for (let k = 0; k < Math.max(1, count); k++) { if (out.length >= MAXN) return out; out.push(name); }
+    }
+    return out;
+  }
+
+  function syncRoster() {
+    roster = parseRoster(nameBox.value);
+    window.__names = roster.slice();
+    playerCount = roster.length;
+    countVal.textContent = roster.length;
+    while (dots.length < roster.length)
+      dots.push({ x: null, y: null, tx: 0, ty: 0, hue: (createdCount++ * 137.508) % 360, born: lobbyT });
+    if (dots.length > roster.length) dots.length = roster.length;
+    for (let i = 0; i < dots.length; i++) dots[i].name = roster[i];
+    layoutDots();
+    const ok = roster.length >= MIN_START;
+    startBtn.disabled = !ok;
+    startBtn.style.opacity = ok ? '' : '.4';
+    startBtn.style.cursor = ok ? '' : 'not-allowed';
+    lobbyHint.textContent = roster.length === 0 ? '이름을 추가하면 출발선이 채워져요'
+      : ok ? `${roster.length}명 출발 대기 — 시작할 수 있어요!`
+           : `${MIN_START}명 이상부터 시작할 수 있어요`;
+  }
+
+  function lobbySize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = lobbyCanvas.clientWidth || 300, h = lobbyCanvas.clientHeight || 150;
+    if (lobbyCanvas.width !== Math.round(w * dpr) || lobbyCanvas.height !== Math.round(h * dpr)) {
+      lobbyCanvas.width = Math.round(w * dpr); lobbyCanvas.height = Math.round(h * dpr);
+    }
+    lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w, h };
+  }
+
+  // runners line up at the start (bottom), filling upward toward the finish line
+  function layoutDots() {
+    const { w, h } = lobbySize();
+    const N = dots.length;
+    const padX = 16, padTop = 24, padBot = 16;
+    const usableW = w - padX * 2, usableH = h - padTop - padBot;
+    gridCols = Math.max(3, Math.min(26, Math.round(Math.sqrt(N * usableW / Math.max(usableH, 1)))));
+    const rows = Math.max(1, Math.ceil(N / gridCols));
+    const gapX = usableW / gridCols, gapY = Math.min(gapX, usableH / rows);
+    lobbyR = Math.max(2, Math.min(12, Math.min(gapX, gapY) * 0.4));
+    for (let i = 0; i < N; i++) {
+      const col = i % gridCols, row = Math.floor(i / gridCols);
+      const d = dots[i];
+      d.tx = padX + gapX * (col + 0.5);
+      d.ty = (h - padBot) - gapY * (row + 0.5);
+      if (d.x === null) { d.x = d.tx; d.y = d.ty + 14; d.born = lobbyT; }
+    }
+  }
+
+  function drawLobby() {
+    const { w, h } = lobbySize();
+    lctx.clearRect(0, 0, w, h);
+    // finish line (checker) at the top
+    const fy = 8, sq = 6;
+    for (let x = 8; x < w - 8; x += sq) {
+      lctx.fillStyle = (Math.floor(x / sq) % 2 === 0) ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.12)';
+      lctx.fillRect(x, fy, sq, sq);
+    }
+    // start line at the bottom
+    lctx.strokeStyle = 'rgba(37,211,102,.55)'; lctx.lineWidth = 2;
+    lctx.beginPath(); lctx.moveTo(10, h - 10); lctx.lineTo(w - 10, h - 10); lctx.stroke();
+
+    if (dots.length === 0) {
+      lctx.fillStyle = 'rgba(200,200,230,.45)';
+      lctx.font = '600 13px -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif';
+      lctx.textAlign = 'center'; lctx.textBaseline = 'middle';
+      lctx.fillText('여기에 참가자가 채워져요', w / 2, h / 2);
+      return;
+    }
+    const showNames = dots.length <= 20 && lobbyR >= 6;
+    for (const d of dots) {
+      d.x += (d.tx - d.x) * 0.2; d.y += (d.ty - d.y) * 0.2;
+      const p = Math.min(1, (lobbyT - d.born) / 280), s = 1 - Math.pow(1 - p, 3), r = lobbyR * s;
+      lctx.beginPath(); lctx.arc(d.x, d.y, r, 0, 6.2832);
+      lctx.fillStyle = `hsl(${d.hue},85%,62%)`; lctx.fill();
+      if (r > 3) { lctx.lineWidth = 1.2; lctx.strokeStyle = 'rgba(255,255,255,.5)'; lctx.stroke(); }
+      if (showNames) {
+        lctx.fillStyle = '#fff';
+        lctx.font = '700 9px -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif';
+        lctx.textAlign = 'center'; lctx.textBaseline = 'bottom';
+        lctx.fillText(d.name, d.x, d.y - r - 1);
+      }
+    }
+  }
+
+  function lobbyLoop(ts) {
+    lobbyT = ts || 0;
+    if (startScreen.classList.contains('hidden')) { lobbyRAF = 0; return; }
+    drawLobby();
+    lobbyRAF = requestAnimationFrame(lobbyLoop);
+  }
+  function startLobby() { if (!lobbyRAF) lobbyRAF = requestAnimationFrame(lobbyLoop); }
+  nameBox.addEventListener('input', syncRoster);
+  window.addEventListener('resize', layoutDots);
+
+  // quick-add: append a batch of bots as "봇 * N" so the count grows through the roster
+  document.querySelectorAll('.preset').forEach(b => b.onclick = () => {
+    const cur = nameBox.value.replace(/\s+$/, '');
+    nameBox.value = (cur ? cur + '\n' : '') + '봇 * ' + (+b.dataset.n);
+    syncRoster();
+    try { localStorage.setItem('minigame_names', nameBox.value); } catch (e) {}
+  });
 
   function begin() {
     resize();
     if (!W || !H) { setTimeout(begin, 120); return; }
-    // custom names (duplicates allowed — twins share hash personality)
-    const box = document.getElementById('nameBox');
-    const names = box.value.split('\n').map(s => s.trim()).filter(Boolean).map(s => s.slice(0, 8));
-    window.__names = names;
-    // mass race: picked count wins if bigger — names fill the front rows, rest run numbered
-    if (names.length >= 4) setCount(Math.max(names.length, playerCount));
-    try { localStorage.setItem('minigame_names', box.value); } catch (e) {}
+    syncRoster();
+    if (roster.length < MIN_START) return;
+    window.__names = roster.slice();
+    playerCount = roster.length;
+    try { localStorage.setItem('minigame_names', nameBox.value); } catch (e) {}
     resize();   // DPR cap depends on the final count
     initAudio();
     if (AC && AC.state === 'suspended') AC.resume();
@@ -1570,7 +1692,9 @@
   }
   document.getElementById('startBtn').onclick = begin;
   document.getElementById('againBtn').onclick = begin;
-  try { const v = localStorage.getItem('minigame_names'); if (v) document.getElementById('nameBox').value = v; } catch (e) {}
+  try { const v = localStorage.getItem('minigame_names'); if (v) nameBox.value = v; } catch (e) {}
+  syncRoster();
+  startLobby();
 
   // 🍌 banana rain: 3 per race, density-uniform (never leader-targeted — fairness optics)
   const boomBtn = document.getElementById('boomBtn');

@@ -104,25 +104,32 @@
   }
   .subtitle { color: #b8b8d8; font-size: clamp(14px,3.5vw,18px); margin-bottom: 30px; font-weight: 600; }
 
-  .control { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 26px; }
+  .control { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 22px; }
   .control label { font-weight: 800; font-size: 16px; color: #cfcff0; }
-  .countRow { display: flex; align-items: center; gap: 18px; }
-  .stepBtn {
-    width: 52px; height: 52px; border-radius: 16px; border: none; cursor: pointer;
-    background: rgba(255,255,255,.1); color: #fff; font-size: 28px; font-weight: 900;
-    transition: transform .08s, background .15s;
-  }
-  .stepBtn:active { transform: scale(.9); }
-  .stepBtn:hover { background: rgba(255,255,255,.18); }
+  .control label .hint { display:block; margin-top:3px; opacity:.6; font-size:12px; font-weight:600; }
+  .control label b { color:#ffd23f; }
   #nameBox {
-    width: min(340px, 84vw); height: 96px; resize: none;
+    width: min(340px, 84vw); height: 74px; resize: none;
     background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14);
-    border-radius: 12px; color: #fff; font-weight: 700; font-size: 14px;
-    padding: 10px 12px; font-family: inherit; outline: none;
+    border-radius: 12px; color: #fff; font-weight: 700; font-size: 14px; line-height:1.5;
+    padding: 9px 12px; font-family: inherit; outline: none;
   }
   #nameBox::placeholder { color: rgba(200,200,230,.45); }
   #nameBox:focus { border-color: rgba(255,210,63,.5); }
-  #countVal { font-size: 46px; font-weight: 900; min-width: 90px; color: #ffd23f; text-shadow: 0 0 18px rgba(255,210,63,.5); }
+  .lobbyWrap { position: relative; width: min(340px, 84vw); }
+  #lobbyCanvas {
+    width: 100%; height: 148px; display:block;
+    background: radial-gradient(ellipse at center, rgba(30,24,60,.55), rgba(8,8,20,.6));
+    border: 1px solid rgba(255,255,255,.12); border-radius: 14px;
+  }
+  .lobbyCount {
+    position:absolute; top:8px; right:10px; pointer-events:none;
+    font-weight:900; font-size:14px; color:#ffd23f;
+    background: rgba(0,0,0,.42); padding:3px 11px; border-radius:999px;
+    text-shadow:0 0 10px rgba(255,210,63,.5);
+  }
+  .lobbyHint { font-size:12.5px; font-weight:700; color:#9fa0c8; min-height:16px; }
+  .playBtn:disabled { opacity:.4; cursor:not-allowed; box-shadow:none; }
 
   .playBtn {
     cursor: pointer; border: none; border-radius: 20px;
@@ -178,16 +185,13 @@
   <div class="title">밀어내기<br>배틀 로얄</div>
   <div class="subtitle">서로 밀쳐서 떨어뜨려라! 마지막 1명이 우승 🏆</div>
   <div class="control">
-    <label>참가 인원</label>
-    <div class="countRow">
-      <button class="stepBtn" id="minus">−</button>
-      <div id="countVal">12</div>
-      <button class="stepBtn" id="plus">+</button>
+    <label>참가자 추가 <span class="hint">한 줄에 하나 · <b>이름 * 4</b> 처럼 인원 지정 · 중복 OK</span></label>
+    <textarea id="nameBox" placeholder="예)&#10;김두기 * 4&#10;홍길동&#10;영희 x2"></textarea>
+    <div class="lobbyWrap">
+      <canvas id="lobbyCanvas"></canvas>
+      <div class="lobbyCount"><span id="countVal">0</span>명</div>
     </div>
-  </div>
-  <div class="control">
-    <label>이름 입력 <span style="opacity:.55;font-size:13px;font-weight:600">(선택 · 한 줄에 하나 · 중복 OK)</span></label>
-    <textarea id="nameBox" placeholder="비워두면 번호로 참가해요&#10;4명 이상 적으면 인원도 자동으로 맞춰져요"></textarea>
+    <div class="lobbyHint" id="lobbyHint"></div>
   </div>
   <button class="playBtn" id="startBtn">▶ 시작!</button>
 </div>
@@ -1119,9 +1123,121 @@
   }
 
   // ---------- UI wiring ----------
+  // ---------- Lobby: name-driven roster + live arena preview ----------
+  const MAXN = 30, MIN_START = 2;
+  const nameBox = document.getElementById('nameBox');
   const countVal = document.getElementById('countVal');
-  document.getElementById('minus').onclick = () => { playerCount = Math.max(4, playerCount - 1); countVal.textContent = playerCount; };
-  document.getElementById('plus').onclick  = () => { playerCount = Math.min(30, playerCount + 1); countVal.textContent = playerCount; };
+  const lobbyHint = document.getElementById('lobbyHint');
+  const startBtn = document.getElementById('startBtn');
+  const startScreen = document.getElementById('startScreen');
+  const lobbyCanvas = document.getElementById('lobbyCanvas');
+  const lctx = lobbyCanvas.getContext('2d');
+  let roster = [], dots = [], createdCount = 0, lobbyT = 0, lobbyRAF = 0, lobbyR = 6;
+
+  // "이름 * 4" / "이름 x4" / "이름 ×4" → 4명.  곱하기 없으면 1명.
+  function parseRoster(text) {
+    const out = [];
+    for (const raw of text.split('\n')) {
+      const line = raw.trim(); if (!line) continue;
+      let name = line, count = 1;
+      const m = line.match(/^(.+?)\s*[*xX×]\s*(\d+)\s*$/);
+      if (m) { name = m[1].trim(); count = parseInt(m[2], 10) || 1; }
+      name = name.slice(0, 8); if (!name) continue;
+      for (let k = 0; k < Math.max(1, count); k++) { if (out.length >= MAXN) return out; out.push(name); }
+    }
+    return out;
+  }
+
+  function syncRoster() {
+    roster = parseRoster(nameBox.value);
+    window.__names = roster.slice();
+    playerCount = roster.length;
+    countVal.textContent = roster.length;
+    while (dots.length < roster.length)
+      dots.push({ x: null, y: null, tx: 0, ty: 0, hue: (createdCount++ * 137.508) % 360, born: lobbyT });
+    if (dots.length > roster.length) dots.length = roster.length;
+    for (let i = 0; i < dots.length; i++) dots[i].name = roster[i];
+    layoutDots();
+    const ok = roster.length >= MIN_START;
+    startBtn.disabled = !ok;
+    startBtn.style.opacity = ok ? '' : '.4';
+    startBtn.style.cursor = ok ? '' : 'not-allowed';
+    lobbyHint.textContent = roster.length === 0 ? '이름을 추가하면 아레나가 채워져요'
+      : ok ? `${roster.length}명 입장 완료 — 시작할 수 있어요!`
+           : `${MIN_START}명 이상부터 시작할 수 있어요`;
+  }
+
+  function lobbySize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = lobbyCanvas.clientWidth || 300, h = lobbyCanvas.clientHeight || 148;
+    if (lobbyCanvas.width !== Math.round(w * dpr) || lobbyCanvas.height !== Math.round(h * dpr)) {
+      lobbyCanvas.width = Math.round(w * dpr); lobbyCanvas.height = Math.round(h * dpr);
+    }
+    lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w, h };
+  }
+
+  function arenaGeom(w, h) { return { cx: w / 2, cy: h / 2, R: Math.min(w * 0.44, h * 0.86) }; }
+
+  function layoutDots() {
+    const { w, h } = lobbySize();
+    const { cx, cy, R } = arenaGeom(w, h);
+    const N = dots.length;
+    lobbyR = Math.max(3, Math.min(15, R * 0.92 / Math.sqrt(Math.max(N, 1))));
+    for (let i = 0; i < N; i++) {
+      const t = (i + 0.5) / N, rr = R * 0.86 * Math.sqrt(t), a = i * 2.399963;
+      const d = dots[i];
+      d.tx = cx + Math.cos(a) * rr;
+      d.ty = cy + Math.sin(a) * rr * 0.66;   // 2.5D squash, matches the arena tilt
+      if (d.x === null) { d.x = d.tx; d.y = d.ty; d.born = lobbyT; }
+    }
+  }
+
+  function drawLobby() {
+    const { w, h } = lobbySize();
+    lctx.clearRect(0, 0, w, h);
+    const { cx, cy, R } = arenaGeom(w, h);
+    lctx.save();
+    lctx.translate(cx, cy); lctx.scale(1, 0.66);
+    lctx.beginPath(); lctx.arc(0, 0, R * 0.92, 0, 6.2832);
+    lctx.fillStyle = 'rgba(255,255,255,.05)'; lctx.fill();
+    lctx.lineWidth = 3; lctx.strokeStyle = 'rgba(255,210,63,.35)'; lctx.stroke();
+    lctx.restore();
+
+    if (dots.length === 0) {
+      lctx.fillStyle = 'rgba(200,200,230,.45)';
+      lctx.font = '600 13px -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif';
+      lctx.textAlign = 'center'; lctx.textBaseline = 'middle';
+      lctx.fillText('여기에 참가자가 채워져요', cx, cy);
+      return;
+    }
+    const showNames = dots.length <= 14 && lobbyR >= 7;
+    for (const d of dots) {
+      d.x += (d.tx - d.x) * 0.2; d.y += (d.ty - d.y) * 0.2;
+      const p = Math.min(1, (lobbyT - d.born) / 280), s = 1 - Math.pow(1 - p, 3), r = lobbyR * s;
+      lctx.beginPath(); lctx.arc(d.x, d.y + 2, r, 0, 6.2832);
+      lctx.fillStyle = 'rgba(0,0,0,.25)'; lctx.fill();
+      lctx.beginPath(); lctx.arc(d.x, d.y, r, 0, 6.2832);
+      lctx.fillStyle = `hsl(${d.hue},85%,62%)`; lctx.fill();
+      lctx.lineWidth = 1.5; lctx.strokeStyle = 'rgba(255,255,255,.5)'; lctx.stroke();
+      if (showNames) {
+        lctx.fillStyle = '#fff';
+        lctx.font = '700 10px -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif';
+        lctx.textAlign = 'center'; lctx.textBaseline = 'top';
+        lctx.fillText(d.name, d.x, d.y + r + 2);
+      }
+    }
+  }
+
+  function lobbyLoop(ts) {
+    lobbyT = ts || 0;
+    if (startScreen.classList.contains('hidden')) { lobbyRAF = 0; return; }
+    drawLobby();
+    lobbyRAF = requestAnimationFrame(lobbyLoop);
+  }
+  function startLobby() { if (!lobbyRAF) lobbyRAF = requestAnimationFrame(lobbyLoop); }
+  nameBox.addEventListener('input', syncRoster);
+  window.addEventListener('resize', layoutDots);
 
   const dispName = p => p.isNum ? p.name + '번' : p.name;
   const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1129,12 +1245,11 @@
   function begin() {
     resize();
     if (!W || !H) { setTimeout(begin, 120); return; }   // pane not laid out yet — a 0-size arena is unrecoverable
-    // custom names (duplicates allowed — players are keyed by id, never by name)
-    const box = document.getElementById('nameBox');
-    const names = box.value.split('\n').map(s => s.trim()).filter(Boolean).map(s => s.slice(0, 8));
-    window.__names = names;
-    if (names.length >= 4) { playerCount = Math.min(30, names.length); countVal.textContent = playerCount; }
-    try { localStorage.setItem('minigame_names', box.value); } catch (e) {}
+    syncRoster();
+    if (roster.length < MIN_START) return;
+    window.__names = roster.slice();
+    playerCount = roster.length;
+    try { localStorage.setItem('minigame_names', nameBox.value); } catch (e) {}
     initAudio();
     if (AC && AC.state === 'suspended') AC.resume();
     document.getElementById('startScreen').classList.add('hidden');
@@ -1145,7 +1260,9 @@
   }
   document.getElementById('startBtn').onclick = begin;
   document.getElementById('againBtn').onclick = begin;
-  try { const v = localStorage.getItem('minigame_names'); if (v) document.getElementById('nameBox').value = v; } catch (e) {}
+  try { const v = localStorage.getItem('minigame_names'); if (v) nameBox.value = v; } catch (e) {}
+  syncRoster();
+  startLobby();
 
   let lastShake = 0;
   const shakeBtn = document.getElementById('shakeBtn');
