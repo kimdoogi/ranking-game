@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="0%" r="110%">
+      <stop offset="0%" stop-color="#1a1440"/>
+      <stop offset="60%" stop-color="#0a0a16"/>
+    </radialGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ff2d95"/>
+      <stop offset="45%" stop-color="#ff8a3d"/>
+      <stop offset="100%" stop-color="#ffd23f"/>
+    </linearGradient>
+    <linearGradient id="pill" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ff4d6d" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#7b5bff" stop-opacity="0.22"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- glow accents -->
+  <circle cx="150" cy="120" r="220" fill="#ff2d95" opacity="0.10"/>
+  <circle cx="1080" cy="560" r="240" fill="#7b5bff" opacity="0.12"/>
+
+  <text x="600" y="205" text-anchor="middle"
+        font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif"
+        font-size="92" font-weight="800" letter-spacing="-2"
+        fill="url(#title)">미니게임 아케이드</text>
+
+  <text x="600" y="270" text-anchor="middle"
+        font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif"
+        font-size="30" font-weight="500" fill="#9aa0c0">브라우저에서 바로 즐기는 미니게임 3종</text>
+
+  <!-- game pills -->
+  <g font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif" font-size="30" font-weight="700" fill="#ffffff" text-anchor="middle">
+    <rect x="120" y="360" width="300" height="86" rx="22" fill="url(#pill)" stroke="#ffffff" stroke-opacity="0.10"/>
+    <text x="270" y="413">먹보 괴물 대탈주</text>
+
+    <rect x="450" y="360" width="300" height="86" rx="22" fill="url(#pill)" stroke="#ffffff" stroke-opacity="0.10"/>
+    <text x="600" y="413">장애물 대탈주 300</text>
+
+    <rect x="780" y="360" width="300" height="86" rx="22" fill="url(#pill)" stroke="#ffffff" stroke-opacity="0.10"/>
+    <text x="930" y="413">밀어내기 배틀 로얄</text>
+  </g>
+
+  <text x="600" y="560" text-anchor="middle"
+        font-family="'Apple SD Gothic Neo','Noto Sans KR',sans-serif"
+        font-size="26" font-weight="600" fill="#7b8bff"
+        letter-spacing="1">kimdoogi.github.io/ranking-game</text>
+</svg>
