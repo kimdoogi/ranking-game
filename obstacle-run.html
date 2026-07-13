@@ -130,26 +130,47 @@
     padding: 6px 12px; transition: background .15s;
   }
   .preset:hover { background: rgba(255,255,255,.16); }
-  #nameBox {
-    width: min(340px, 84vw); height: 74px; resize: none;
-    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14);
-    border-radius: 12px; color: #fff; font-weight: 700; font-size: 14px; line-height:1.5;
-    padding: 9px 12px; font-family: inherit; outline: none;
+  .addRow { display:flex; gap:8px; width:min(340px,84vw); }
+  #nameInput {
+    flex:1; min-width:0; height:44px;
+    background: rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14);
+    border-radius:12px; color:#fff; font-weight:700; font-size:15px;
+    padding:0 14px; font-family:inherit; outline:none;
   }
-  #nameBox::placeholder { color: rgba(200,200,230,.45); }
-  #nameBox:focus { border-color: rgba(255,210,63,.5); }
-  .lobbyWrap { position: relative; width: min(340px, 84vw); }
-  #lobbyCanvas {
-    width: 100%; height: 150px; display:block;
-    background: radial-gradient(ellipse at center, rgba(30,24,60,.55), rgba(8,8,20,.6));
-    border: 1px solid rgba(255,255,255,.12); border-radius: 14px;
+  #nameInput::placeholder { color: rgba(200,200,230,.45); }
+  #nameInput:focus { border-color: rgba(255,210,63,.5); }
+  .addBtn {
+    flex-shrink:0; cursor:pointer; border:none; border-radius:12px;
+    background: linear-gradient(135deg,#ff8a3d,#ff4d6d); color:#fff;
+    font-weight:900; font-size:15px; padding:0 18px; height:44px; transition: transform .08s;
   }
-  .lobbyCount {
-    position:absolute; top:8px; right:10px; pointer-events:none;
-    font-weight:900; font-size:14px; color:#ffd23f;
-    background: rgba(0,0,0,.42); padding:3px 11px; border-radius:999px;
-    text-shadow:0 0 10px rgba(255,210,63,.5);
+  .addBtn:active { transform: scale(.94); }
+  .rosterWrap { width:min(340px,84vw); }
+  .rosterList {
+    display:flex; flex-wrap:wrap; gap:7px; justify-content:center; align-items:center;
+    min-height:46px; max-height:120px; overflow-y:auto;
+    padding:10px; border-radius:12px;
+    background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
   }
+  .rosterEmpty { color: rgba(200,200,230,.4); font-weight:700; font-size:13px; }
+  .chip {
+    display:inline-flex; align-items:center; gap:6px;
+    background: rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.16);
+    border-radius:999px; padding:5px 6px 5px 12px; font-weight:800; font-size:13px; color:#fff;
+  }
+  .chipX {
+    cursor:pointer; border:none; width:20px; height:20px; border-radius:50%;
+    background: rgba(255,255,255,.16); color:#fff; font-size:11px; line-height:1;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .chipX:hover { background:#ff4d6d; }
+  .rosterFoot { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:8px; }
+  .lobbyCount { font-weight:900; font-size:15px; color:#ffd23f; text-shadow:0 0 10px rgba(255,210,63,.5); }
+  .clearBtn {
+    cursor:pointer; border:1px solid rgba(255,255,255,.16); border-radius:10px;
+    background: rgba(255,255,255,.06); color:#b8b8d8; font-weight:800; font-size:12.5px; padding:6px 12px;
+  }
+  .clearBtn:hover { background: rgba(255,77,109,.18); border-color: rgba(255,77,109,.5); color:#fff; }
   .lobbyHint { font-size:12.5px; font-weight:700; color:#9fa0c8; min-height:16px; }
   .playBtn:disabled { opacity:.4; cursor:not-allowed; box-shadow:none; }
 
@@ -208,17 +229,23 @@
   <div class="title">장애물<br>대탈주</div>
   <div class="subtitle">해머, 크러셔, 진흙탕을 뚫고 결승선까지! 최대 300명 🏁</div>
   <div class="control">
-    <label>참가자 추가 <span class="hint">한 줄에 하나 · <b>이름 * 4</b> 처럼 인원 지정 · 최대 300명</span></label>
-    <textarea id="nameBox" placeholder="예)&#10;김두기 * 4&#10;홍길동&#10;봇 * 100"></textarea>
+    <label>참가자 추가 <span class="hint"><b>이름 * 4</b> 처럼 입력하고 추가하기 · 최대 300명</span></label>
+    <div class="addRow">
+      <input id="nameInput" type="text" placeholder="예: 김두기 * 4" autocomplete="off" />
+      <button id="addBtn" class="addBtn">추가하기</button>
+    </div>
     <div class="presets">
       <button class="preset" data-n="12">봇 +12</button>
       <button class="preset" data-n="50">봇 +50</button>
       <button class="preset" data-n="100">봇 +100</button>
       <button class="preset" data-n="300">봇 +300</button>
     </div>
-    <div class="lobbyWrap">
-      <canvas id="lobbyCanvas"></canvas>
-      <div class="lobbyCount"><span id="countVal">0</span>명</div>
+    <div class="rosterWrap">
+      <div class="rosterList" id="rosterList"></div>
+      <div class="rosterFoot">
+        <span class="lobbyCount"><span id="countVal">0</span>명</span>
+        <button id="clearBtn" class="clearBtn">전체 지우기</button>
+      </div>
     </div>
     <div class="lobbyHint" id="lobbyHint"></div>
   </div>
@@ -1545,141 +1572,83 @@
     ws.classList.remove('hidden');
   }
 
-  // ---------- Lobby: name-driven roster + live start-grid preview ----------
+  // ---------- Roster: "이름 * 4" 입력 → 추가하기 버튼으로 그만큼 추가 ----------
   const MAXN = 300, MIN_START = 2;
-  const nameBox = document.getElementById('nameBox');
+  const nameInput = document.getElementById('nameInput');
+  const addBtn = document.getElementById('addBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const rosterList = document.getElementById('rosterList');
   const countVal = document.getElementById('countVal');
   const lobbyHint = document.getElementById('lobbyHint');
   const startBtn = document.getElementById('startBtn');
-  const startScreen = document.getElementById('startScreen');
-  const lobbyCanvas = document.getElementById('lobbyCanvas');
-  const lctx = lobbyCanvas.getContext('2d');
-  let roster = [], dots = [], createdCount = 0, lobbyT = 0, lobbyRAF = 0, lobbyR = 6, gridCols = 8;
+  let entries = [];   // [{ name, count }]
 
-  // "이름 * 4" / "이름 x4" / "이름 ×4" → 4명.  곱하기 없으면 1명.
-  function parseRoster(text) {
+  const totalCount = () => entries.reduce((s, e) => s + e.count, 0);
+  function expandRoster() {
     const out = [];
-    for (const raw of text.split('\n')) {
-      const line = raw.trim(); if (!line) continue;
-      let name = line, count = 1;
-      const m = line.match(/^(.+?)\s*[*xX×]\s*(\d+)\s*$/);
-      if (m) { name = m[1].trim(); count = parseInt(m[2], 10) || 1; }
-      name = name.slice(0, 8); if (!name) continue;
-      for (let k = 0; k < Math.max(1, count); k++) { if (out.length >= MAXN) return out; out.push(name); }
-    }
+    for (const e of entries) for (let k = 0; k < e.count; k++) { if (out.length >= MAXN) return out; out.push(e.name); }
     return out;
   }
-
-  function syncRoster() {
-    roster = parseRoster(nameBox.value);
-    window.__names = roster.slice();
-    playerCount = roster.length;
-    countVal.textContent = roster.length;
-    while (dots.length < roster.length)
-      dots.push({ x: null, y: null, tx: 0, ty: 0, hue: (createdCount++ * 137.508) % 360, born: lobbyT });
-    if (dots.length > roster.length) dots.length = roster.length;
-    for (let i = 0; i < dots.length; i++) dots[i].name = roster[i];
-    layoutDots();
-    const ok = roster.length >= MIN_START;
+  // "이름 * 4" / "이름 x4" / "이름 ×4" → {name, 4}.  곱하기 없으면 1명.
+  function parseEntry(text) {
+    const line = (text || '').trim(); if (!line) return null;
+    let name = line, count = 1;
+    const m = line.match(/^(.+?)\s*[*xX×]\s*(\d+)\s*$/);
+    if (m) { name = m[1].trim(); count = parseInt(m[2], 10) || 1; }
+    name = name.slice(0, 8); if (!name) return null;
+    return { name, count: Math.max(1, count) };
+  }
+  function addEntry(text) {
+    const e = parseEntry(text); if (!e) return false;
+    const room = MAXN - totalCount(); if (room <= 0) return false;
+    e.count = Math.min(e.count, room);
+    const ex = entries.find(x => x.name === e.name);
+    if (ex) ex.count += e.count; else entries.push(e);
+    renderRoster(); return true;
+  }
+  function renderRoster() {
+    const total = totalCount();
+    window.__names = expandRoster();
+    playerCount = total;
+    countVal.textContent = total;
+    rosterList.innerHTML = '';
+    if (entries.length === 0) {
+      const em = document.createElement('div'); em.className = 'rosterEmpty';
+      em.textContent = '아직 참가자가 없어요'; rosterList.appendChild(em);
+    } else entries.forEach((e, i) => {
+      const chip = document.createElement('span'); chip.className = 'chip';
+      const lab = document.createElement('span'); lab.textContent = e.count > 1 ? `${e.name} ×${e.count}` : e.name;
+      const x = document.createElement('button'); x.className = 'chipX'; x.type = 'button'; x.textContent = '✕';
+      x.onclick = () => { entries.splice(i, 1); renderRoster(); };
+      chip.appendChild(lab); chip.appendChild(x); rosterList.appendChild(chip);
+    });
+    const ok = total >= MIN_START;
     startBtn.disabled = !ok;
     startBtn.style.opacity = ok ? '' : '.4';
     startBtn.style.cursor = ok ? '' : 'not-allowed';
-    lobbyHint.textContent = roster.length === 0 ? '이름을 추가하면 출발선이 채워져요'
-      : ok ? `${roster.length}명 출발 대기 — 시작할 수 있어요!`
+    lobbyHint.textContent = total === 0 ? '이름을 입력하고 추가하기를 누르세요'
+      : ok ? `${total}명 참가 — 시작할 수 있어요!`
            : `${MIN_START}명 이상부터 시작할 수 있어요`;
+    try { localStorage.setItem('minigame_roster', JSON.stringify(entries)); } catch (e) {}
   }
-
-  function lobbySize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = lobbyCanvas.clientWidth || 300, h = lobbyCanvas.clientHeight || 150;
-    if (lobbyCanvas.width !== Math.round(w * dpr) || lobbyCanvas.height !== Math.round(h * dpr)) {
-      lobbyCanvas.width = Math.round(w * dpr); lobbyCanvas.height = Math.round(h * dpr);
-    }
-    lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    return { w, h };
-  }
-
-  // runners line up at the start (bottom), filling upward toward the finish line
-  function layoutDots() {
-    const { w, h } = lobbySize();
-    const N = dots.length;
-    const padX = 16, padTop = 24, padBot = 16;
-    const usableW = w - padX * 2, usableH = h - padTop - padBot;
-    gridCols = Math.max(3, Math.min(26, Math.round(Math.sqrt(N * usableW / Math.max(usableH, 1)))));
-    const rows = Math.max(1, Math.ceil(N / gridCols));
-    const gapX = usableW / gridCols, gapY = Math.min(gapX, usableH / rows);
-    lobbyR = Math.max(2, Math.min(12, Math.min(gapX, gapY) * 0.4));
-    for (let i = 0; i < N; i++) {
-      const col = i % gridCols, row = Math.floor(i / gridCols);
-      const d = dots[i];
-      d.tx = padX + gapX * (col + 0.5);
-      d.ty = (h - padBot) - gapY * (row + 0.5);
-      if (d.x === null) { d.x = d.tx; d.y = d.ty + 14; d.born = lobbyT; }
-    }
-  }
-
-  function drawLobby() {
-    const { w, h } = lobbySize();
-    lctx.clearRect(0, 0, w, h);
-    // finish line (checker) at the top
-    const fy = 8, sq = 6;
-    for (let x = 8; x < w - 8; x += sq) {
-      lctx.fillStyle = (Math.floor(x / sq) % 2 === 0) ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.12)';
-      lctx.fillRect(x, fy, sq, sq);
-    }
-    // start line at the bottom
-    lctx.strokeStyle = 'rgba(37,211,102,.55)'; lctx.lineWidth = 2;
-    lctx.beginPath(); lctx.moveTo(10, h - 10); lctx.lineTo(w - 10, h - 10); lctx.stroke();
-
-    if (dots.length === 0) {
-      lctx.fillStyle = 'rgba(200,200,230,.45)';
-      lctx.font = '600 13px -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif';
-      lctx.textAlign = 'center'; lctx.textBaseline = 'middle';
-      lctx.fillText('여기에 참가자가 채워져요', w / 2, h / 2);
-      return;
-    }
-    const showNames = dots.length <= 20 && lobbyR >= 6;
-    for (const d of dots) {
-      d.x += (d.tx - d.x) * 0.2; d.y += (d.ty - d.y) * 0.2;
-      const p = Math.min(1, (lobbyT - d.born) / 280), s = 1 - Math.pow(1 - p, 3), r = lobbyR * s;
-      lctx.beginPath(); lctx.arc(d.x, d.y, r, 0, 6.2832);
-      lctx.fillStyle = `hsl(${d.hue},85%,62%)`; lctx.fill();
-      if (r > 3) { lctx.lineWidth = 1.2; lctx.strokeStyle = 'rgba(255,255,255,.5)'; lctx.stroke(); }
-      if (showNames) {
-        lctx.fillStyle = '#fff';
-        lctx.font = '700 9px -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif';
-        lctx.textAlign = 'center'; lctx.textBaseline = 'bottom';
-        lctx.fillText(d.name, d.x, d.y - r - 1);
-      }
-    }
-  }
-
-  function lobbyLoop(ts) {
-    lobbyT = ts || 0;
-    if (startScreen.classList.contains('hidden')) { lobbyRAF = 0; return; }
-    drawLobby();
-    lobbyRAF = requestAnimationFrame(lobbyLoop);
-  }
-  function startLobby() { if (!lobbyRAF) lobbyRAF = requestAnimationFrame(lobbyLoop); }
-  nameBox.addEventListener('input', syncRoster);
-  window.addEventListener('resize', layoutDots);
-
-  // quick-add: append a batch of bots as "봇 * N" so the count grows through the roster
-  document.querySelectorAll('.preset').forEach(b => b.onclick = () => {
-    const cur = nameBox.value.replace(/\s+$/, '');
-    nameBox.value = (cur ? cur + '\n' : '') + '봇 * ' + (+b.dataset.n);
-    syncRoster();
-    try { localStorage.setItem('minigame_names', nameBox.value); } catch (e) {}
-  });
+  addBtn.onclick = () => { if (addEntry(nameInput.value)) { nameInput.value = ''; nameInput.focus(); } };
+  nameInput.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); addBtn.onclick(); } });
+  clearBtn.onclick = () => { entries = []; renderRoster(); };
+  // quick-add: 봇 N명 한 번에 추가
+  document.querySelectorAll('.preset').forEach(b => b.onclick = () => addEntry('봇 * ' + (+b.dataset.n)));
+  try {
+    const v = localStorage.getItem('minigame_roster');
+    if (v) entries = JSON.parse(v) || [];
+    else { const old = localStorage.getItem('minigame_names'); if (old) old.split('\n').forEach(l => addEntry(l)); }
+  } catch (e) { entries = []; }
+  renderRoster();
 
   function begin() {
     resize();
     if (!W || !H) { setTimeout(begin, 120); return; }
-    syncRoster();
-    if (roster.length < MIN_START) return;
-    window.__names = roster.slice();
-    playerCount = roster.length;
-    try { localStorage.setItem('minigame_names', nameBox.value); } catch (e) {}
+    window.__names = expandRoster();
+    if (window.__names.length < MIN_START) return;
+    playerCount = window.__names.length;
     resize();   // DPR cap depends on the final count
     initAudio();
     if (AC && AC.state === 'suspended') AC.resume();
@@ -1692,9 +1661,6 @@
   }
   document.getElementById('startBtn').onclick = begin;
   document.getElementById('againBtn').onclick = begin;
-  try { const v = localStorage.getItem('minigame_names'); if (v) nameBox.value = v; } catch (e) {}
-  syncRoster();
-  startLobby();
 
   // 🍌 banana rain: 3 per race, density-uniform (never leader-targeted — fairness optics)
   const boomBtn = document.getElementById('boomBtn');
