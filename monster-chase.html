@@ -1,0 +1,1497 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>먹보 괴물 대탈주 👾</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: #0a0a16;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: #fff;
+    user-select: none;
+  }
+  #game { position: fixed; inset: 0; display: block; }
+
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 16px 20px; pointer-events: none; z-index: 5;
+  }
+  .pill {
+    background: rgba(20,20,40,.55); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 14px; padding: 8px 16px;
+    font-weight: 800; font-size: 15px; letter-spacing: .3px;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .pill .big { font-size: 22px; color: #ffd23f; text-shadow: 0 0 12px rgba(255,210,63,.6); }
+  #boomBtn {
+    pointer-events: auto; cursor: pointer;
+    background: linear-gradient(135deg,#ff4d6d,#ff8a3d);
+    border: none; border-radius: 14px; color: #fff;
+    font-weight: 900; font-size: 15px; padding: 10px 18px;
+    box-shadow: 0 6px 20px rgba(255,77,109,.45);
+    transition: transform .08s;
+  }
+  #boomBtn:active { transform: scale(.92); }
+
+  .overlay {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(20,16,40,.72), rgba(5,5,14,.92));
+    backdrop-filter: blur(3px); text-align: center; padding: 24px;
+  }
+  .overlay.hidden { display: none; }
+
+  .title {
+    font-size: clamp(38px, 9vw, 82px); font-weight: 900; line-height: 1.02;
+    background: linear-gradient(135deg,#ff2d95,#ff8a3d 45%,#ffd23f);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 4px 24px rgba(255,45,149,.4));
+    margin-bottom: 6px;
+  }
+  .subtitle { color: #b8b8d8; font-size: clamp(14px,3.5vw,18px); margin-bottom: 30px; font-weight: 600; }
+
+  .control { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 26px; }
+  .control label { font-weight: 800; font-size: 16px; color: #cfcff0; }
+  .countRow { display: flex; align-items: center; gap: 18px; }
+  .stepBtn {
+    width: 52px; height: 52px; border-radius: 16px; border: none; cursor: pointer;
+    background: rgba(255,255,255,.1); color: #fff; font-size: 28px; font-weight: 900;
+    transition: transform .08s, background .15s;
+  }
+  .stepBtn:active { transform: scale(.9); }
+  .stepBtn:hover { background: rgba(255,255,255,.18); }
+  #nameBox {
+    width: min(340px, 84vw); height: 96px; resize: none;
+    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14);
+    border-radius: 12px; color: #fff; font-weight: 700; font-size: 14px;
+    padding: 10px 12px; font-family: inherit; outline: none;
+  }
+  #nameBox::placeholder { color: rgba(200,200,230,.45); }
+  #nameBox:focus { border-color: rgba(255,210,63,.5); }
+  #countVal { font-size: 46px; font-weight: 900; min-width: 90px; color: #ffd23f; text-shadow: 0 0 18px rgba(255,210,63,.5); }
+
+  .playBtn {
+    cursor: pointer; border: none; border-radius: 20px;
+    background: linear-gradient(135deg,#25d366,#0fb85a);
+    color: #fff; font-weight: 900; font-size: 24px; padding: 18px 54px;
+    box-shadow: 0 10px 34px rgba(37,211,102,.5);
+    transition: transform .1s;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .playBtn:active { transform: scale(.94); }
+  .playBtn.win { background: linear-gradient(135deg,#ffd23f,#ff8a3d); box-shadow: 0 10px 34px rgba(255,138,61,.5); }
+
+  #winName {
+    font-size: clamp(30px,7vw,60px); font-weight: 900; margin: 4px 0 2px;
+    background: linear-gradient(135deg,#ffe98a,#ffd23f,#ff9d3d);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .crown { font-size: clamp(50px,14vw,120px); filter: drop-shadow(0 6px 20px rgba(255,210,63,.6)); animation: bob 1.6s ease-in-out infinite; }
+  @keyframes bob { 0%,100%{ transform: translateY(0) rotate(-4deg);} 50%{ transform: translateY(-12px) rotate(4deg);} }
+  .rankList { list-style: none; margin: 22px 0 28px; width: min(380px, 88vw); max-height: 42vh; overflow-y: auto; }
+  .rankItem {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px; padding: 9px 14px; margin-bottom: 8px; font-weight: 800; font-size: 16px;
+  }
+  .rankNo { width: 34px; font-size: 18px; font-weight: 900; text-align: center; }
+  .dot { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; }
+  .rankItem.gold   { background: rgba(255,210,63,.16); border-color: rgba(255,210,63,.5); }
+  .rankItem.silver { background: rgba(200,210,230,.14); border-color: rgba(200,210,230,.4); }
+  .rankItem.bronze { background: rgba(205,127,50,.16); border-color: rgba(205,127,50,.45); }
+  .rankName { flex: 1; text-align: left; }
+  #countdown {
+    position: fixed; inset: 0; z-index: 20; display: none;
+    align-items: center; justify-content: center; pointer-events: none;
+    font-size: clamp(90px,30vw,260px); font-weight: 900; color: #fff;
+    text-shadow: 0 0 60px rgba(255,210,63,.8);
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div class="pill">🏃 남은 인원 <span class="big" id="aliveCount">0</span></div>
+  <button id="boomBtn">🧨 폭죽!</button>
+</div>
+
+<div id="countdown"></div>
+
+<div class="overlay" id="startScreen">
+  <div class="title">먹보 괴물<br>대탈주</div>
+  <div class="subtitle">먹히지 마라! 마지막 생존자가 우승 🏆</div>
+  <div class="control">
+    <label>참가 인원</label>
+    <div class="countRow">
+      <button class="stepBtn" id="minus">−</button>
+      <div id="countVal">12</div>
+      <button class="stepBtn" id="plus">+</button>
+    </div>
+  </div>
+  <div class="control">
+    <label>이름 입력 <span style="opacity:.55;font-size:13px;font-weight:600">(선택 · 한 줄에 하나 · 중복 OK)</span></label>
+    <textarea id="nameBox" placeholder="비워두면 번호로 참가해요&#10;4명 이상 적으면 인원도 자동으로 맞춰져요"></textarea>
+  </div>
+  <button class="playBtn" id="startBtn">▶ 시작!</button>
+</div>
+
+<div class="overlay hidden" id="winScreen">
+  <div class="crown">👑</div>
+  <div style="font-weight:800;color:#b8b8d8;letter-spacing:2px;">WINNER</div>
+  <div id="winName">-</div>
+  <ul class="rankList" id="rankList"></ul>
+  <button class="playBtn win" id="againBtn">🔄 다시하기</button>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, DPR = 1;
+
+  const TILT = 0.52;
+  const SD_TIME = 45;
+  const COLLAPSE_TIME = 75;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  // remap the whole world proportionally on viewport changes — the game may boot
+  // inside a not-yet-sized preview pane (tiny W/H) or be resized mid-match
+  function remapWorld() {
+    if (!arena || !arena.R0) return;
+    const oldCx = arena.cx, oldCy = arena.cy, oldR0 = arena.R0;
+    const cx = W / 2, cy = H * 0.54;
+    const R0n = Math.min(W * 0.42, H * 0.55);
+    if (!R0n || Math.abs(R0n - oldR0) < 1) return;
+    const k = R0n / oldR0;
+    const mv = o => { o.x = cx + (o.x - oldCx) * k; o.y = cy + (o.y - oldCy) * k; };
+    arena.cx = cx; arena.cy = cy;
+    arena.R0 = R0n; arena.R *= k;
+    arena.scale = clamp(R0n / 340, 0.55, 1.2);
+    for (const p of players) { mv(p); p.r *= k; }
+    for (const pl of pillars) { mv(pl); pl.r *= k; }
+    for (const g of ghosts) mv(g);
+    if (monster) {
+      mv(monster);
+      monster.r *= k; monster.baseR *= k;
+      monster.lureX = cx + (monster.lureX - oldCx) * k;
+      monster.lureY = cy + (monster.lureY - oldCy) * k;
+    }
+    cam = { x: W / 2, y: H * 0.5, zoom: cam.zoom, tx: W / 2, ty: H * 0.5, tz: cam.tz };
+  }
+  window.addEventListener('resize', () => { resize(); remapWorld(); });
+  resize();
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function lerp(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }
+  function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= 6.2832; while (d < -Math.PI) d += 6.2832; return d; }
+
+  // ---------- Audio (master gain + per-type voice limits) ----------
+  let AC = null, master = null, duckUntil = 0;
+  const lastSfx = {};
+  function initAudio() {
+    if (AC) return;
+    try {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      master = AC.createGain(); master.gain.value = 0.8;
+      master.connect(AC.destination);
+    } catch (e) {}
+  }
+  function beep(freq, dur = 0.06, type = 'sine', vol = 0.12, freq2 = 0) {
+    if (!AC) return;
+    const t = AC.currentTime;
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (freq2) o.frequency.linearRampToValueAtTime(freq2, t + dur);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur);
+  }
+  function sfx(type, gapMs, fn) {
+    const now = performance.now();
+    if (lastSfx[type] && now - lastSfx[type] < gapMs) return;
+    lastSfx[type] = now;
+    const duck = now < duckUntil ? 0.6 : 1;
+    fn(duck);
+  }
+  function fanfare() {
+    [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.22, 'triangle', 0.16), i * 120));
+  }
+
+  // ---------- State ----------
+  let state = 'menu';
+  let players = [], particles = [], floaters = [], confetti = [], ghosts = [], pillars = [];
+  let monster = null;
+  let eliminationOrder = [];
+  let arena = { cx: 0, cy: 0, R: 0, R0: 0, scale: 1 };
+  let cdT = 0, cdIdx = -1;
+  let playerCount = 12;
+  let winner = null;
+
+  let gameT = 0, spin = 0;
+  let suddenDeath = false, sdPillarT = 0, firstEatDone = false;
+  let faceOffDone = false, finalSlowmoDone = false, prevAliveN = 99;
+  let eatEvents = [];               // gameT of eat events (rolling windows)
+  let lastEatT = 0;
+  let blackoutT = 0, blackoutUsed = false;
+
+  let trauma = 0, lastEatShake = -9;
+  let freezeT = 0;
+  let slowmo = { ts: 1, t: 0 }, timeScale = 1;
+  let flashT = 0, lastFlash = 0;
+  let banner = null, lastBannerT = 0;
+  let hbT = 0;
+  let runnerGlow = 12;
+  let cam = { x: 0, y: 0, zoom: 1, tx: 0, ty: 0, tz: 1 };
+
+  function groundY(y) { return arena.cy + (y - arena.cy) * TILT; }
+  const aliveEl = document.getElementById('aliveCount');
+
+  function addTrauma(a) {
+    if (timeScale < 0.999 || cam.zoom > 1.001) return;
+    trauma = Math.min(1, trauma + a);
+  }
+  function fireFlash() {
+    const now = performance.now();
+    if (now - lastFlash < 2000) return;
+    lastFlash = now; flashT = 0.08;
+  }
+  function showBanner(text, color, dur = 1.2, force = false) {
+    const now = performance.now();
+    if (!force && now - lastBannerT < 2000) return;
+    lastBannerT = now;
+    banner = { text, color, t: 0, dur };
+  }
+  function setSlowmo(ts, dur) { slowmo = { ts, t: dur }; trauma = 0; }
+  function addFloater(x, y, text, color, big) {
+    floaters.push({ x, y, text, color, life: 1, vy: -0.9, big: !!big });
+    if (floaters.length > 8) floaters.shift();
+  }
+  function spawnParticles(x, y, color, n, spd) {
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, 6.2832), sp = rand(0.5, spd);
+      particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, r: rand(2, 5.5), color });
+    }
+    if (particles.length > 150) particles.splice(0, particles.length - 150);
+  }
+  function burstConfetti() {
+    const colors = ['#ffd23f', '#ff4d6d', '#25d366', '#7b5bff', '#3fd0ff', '#ff8a3d'];
+    for (let i = 0; i < 160; i++) {
+      confetti.push({
+        x: rand(0, W), y: rand(-H * 0.4, 0),
+        vx: rand(-2, 2), vy: rand(2, 6),
+        r: rand(4, 9), rot: rand(0, 6.28), vr: rand(-0.3, 0.3),
+        color: colors[i % colors.length],
+      });
+    }
+  }
+
+  // ---------- Setup ----------
+  function setupGame(n) {
+    players = []; particles = []; floaters = []; confetti = []; ghosts = []; pillars = [];
+    eliminationOrder = []; winner = null; trauma = 0; spin = 0;
+    gameT = 0; suddenDeath = false; sdPillarT = 0; firstEatDone = false;
+    faceOffDone = false; finalSlowmoDone = false; prevAliveN = 99;
+    eatEvents = []; lastEatT = 0; blackoutT = 0; blackoutUsed = false;
+    freezeT = 0; slowmo = { ts: 1, t: 0 }; timeScale = 1;
+    flashT = 0; banner = null; hbT = 0; lastEatShake = -9;
+
+    const cx = W / 2, cy = H * 0.54;
+    const R = Math.min(W * 0.42, H * 0.55);
+    arena = { cx, cy, R, R0: R, scale: clamp(R / 340, 0.55, 1.2) };
+    cam = { x: W / 2, y: H * 0.5, zoom: 1, tx: W / 2, ty: H * 0.5, tz: 1 };
+
+    // pillars: ring at 0.5R, 45/135/225/315° ± jitter (3 on small screens)
+    const nP = arena.scale < 0.7 ? 3 : 4;
+    for (let i = 0; i < nP; i++) {
+      const a = (Math.PI / 4) + i * (6.2832 / nP) + rand(-0.26, 0.26);
+      pillars.push({
+        x: cx + Math.cos(a) * R * 0.5, y: cy + Math.sin(a) * R * 0.5,
+        r: R * 0.07, cracks: 0, alive: true, crumbleT: 0,
+      });
+    }
+
+    const r = Math.max(12, Math.min(22, R / (n * 0.46)));
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * 6.2832 + rand(-0.15, 0.15);
+      const rad = R * rand(0.55, 0.8);
+      const hue = (i * (360 / n) + rand(-8, 8)) % 360;
+      players.push({
+        id: i, name: (window.__names && window.__names[i]) || String(i + 1),
+        isNum: !(window.__names && window.__names[i]),
+        color: `hsl(${hue}, 85%, 62%)`,
+        x: cx + Math.cos(ang) * rad, y: cy + Math.sin(ang) * rad,
+        vx: 0, vy: 0, z: 0, vz: 0,
+        r, alive: true,
+        phase: rand(0, 6.28), squash: 0, lookX: 0, lookY: 1,
+        wanderA: rand(0, 6.2832),
+        // personality
+        spd: rand(0.92, 1.08), courage: rand(0.75, 1.25),
+        clumsy: rand(0.5, 2), dashSkill: rand(0.8, 1.2),
+        // states
+        dashT: 0, dashCd: 0, consecSaves: 0, trail: [],
+        tripT: 0, tripRoll: 0, veerT: 0, veerRoll: 0, veerDir: 1,
+      });
+    }
+
+    monster = {
+      x: cx, y: cy, r: R * 0.065, baseR: R * 0.065,
+      h: rand(0, 6.2832),          // heading
+      state: 'idle', msT: 0,       // state timer
+      lock: -1, lockT: 0, lockPrev: -1, lockRepeat: 0, coverT: 0,
+      whiffsOnLock: 0, consecWhiffLocks: 0,
+      eats: 0, hunger: 0, digestT: 1.5,
+      dizzyT: 0, tantrumT: 0, lureT: 0, lureX: 0, lureY: 0,
+      mouthPh: 0, belly: 0, minLockDist: 1e9,
+      lungeAte: 0,
+    };
+    aliveEl._v = -1;
+    document.getElementById('aliveCount').textContent = n;
+  }
+
+  // ---------- Eat / eliminate ----------
+  function eatRunner(p) {
+    if (state !== 'playing') return;               // never eat past the decided win
+    p.alive = false;
+    if (monster.lock === p.id) dropLock(monster);  // a corpse lock would stall the match forever
+    if (!eliminationOrder.includes(p)) eliminationOrder.push(p);
+    monster.eats++; monster.lungeAte++;
+    monster.r = Math.min(monster.baseR * 1.8, monster.r * 1.05);
+    monster.belly = 1;
+    lastEatT = gameT;
+    if (gameT - lastEatShake > 0.8) { addTrauma(0.25); lastEatShake = gameT; }
+    if (freezeT <= 0) freezeT = 0.07;
+    const gy = groundY(p.y);
+    addFloater(p.x, gy - 40, '냠!', '#ff2d95', true);
+    spawnParticles(p.x, gy, p.color, 14, 4);
+    sfx('gulp', 90, d => beep(Math.min(500, 160 + monster.eats * 22), 0.12, 'triangle', 0.16 * d));
+    if (monster.eats % 3 === 0) setTimeout(() => beep(150, 0.3, 'sawtooth', 0.14, Math.max(60, 80 - monster.belly * 20)), 350);
+    // ghost gallery: soul floats to a rim seat
+    ghosts.push({ color: p.color, x: p.x, y: gy - 20, t: 0, seat: ghosts.length });
+    if (!firstEatDone) { firstEatDone = true; showBanner('첫 냠!', '#ff2d95'); }
+    if (blackoutT > 0) showBanner('어둠 속의 냠!', '#ffd23f', 1.4, true);
+    checkWin();
+  }
+
+  function checkWin() {
+    const alive = players.filter(p => p.alive);
+    if (alive.length <= 1 && state === 'playing') {
+      state = 'over';
+      winner = alive[0] || eliminationOrder[eliminationOrder.length - 1];
+      if (winner && !eliminationOrder.includes(winner)) eliminationOrder.push(winner);
+      cam.tx = W / 2; cam.ty = H * 0.5; cam.tz = 1;
+      setTimeout(showWinner, 1400);
+      burstConfetti(); fanfare(); addTrauma(0.6);
+    }
+  }
+
+  // ---------- Update ----------
+  function update(dt, fm) {
+    gameT += dt;
+    spin += dt * 0.4;
+    const sc = arena.scale;
+    const aliveList = players.filter(p => p.alive);
+    const aliveN = aliveList.length;
+
+    // sudden death
+    if (!suddenDeath && gameT >= SD_TIME && state === 'playing') {
+      suddenDeath = true; sdPillarT = 2.2;
+      showBanner('⚡ 서든데스!!', '#ff3b4d', 1.5, true);
+      addTrauma(0.5);
+      [0, 140, 280].forEach((ms, i) => setTimeout(() => beep(300 + i * 90, 0.1, 'square', 0.16), ms));
+    }
+    if (suddenDeath) {
+      if (sdPillarT > 0) {
+        sdPillarT -= dt;
+        if (sdPillarT <= 0) {
+          showBanner('기둥 붕괴!', '#ff8a3d', 1.2, true);
+          for (const pl of pillars) if (pl.alive) pl.crumbleT = rand(0.1, 1.2);
+        }
+      }
+      // final duel or collapse: shrink harder so the orbit stalemate can't happen
+      const duel = aliveN <= 2 || gameT >= COLLAPSE_TIME;
+      const rate = arena.R0 * (gameT >= COLLAPSE_TIME ? 0.09 : duel ? 0.045 : 0.03);
+      arena.R = Math.max(arena.R0 * (duel ? 0.35 : 0.5), arena.R - rate * dt);
+    }
+    // pillar crumble anim
+    for (const pl of pillars) {
+      if (pl.alive && pl.crumbleT > 0) {
+        pl.crumbleT -= dt;
+        if (pl.crumbleT <= 0) {
+          pl.alive = false;
+          spawnParticles(pl.x, groundY(pl.y), 'rgba(140,120,220,0.9)', 18, 5);
+          addTrauma(0.35);
+          sfx('crash', 200, d => beep(90, 0.25, 'sawtooth', 0.16 * d, 50));
+        }
+      }
+    }
+
+    // blackout window (no shake in the dark — eyes must stay put)
+    if (blackoutT > 0) { blackoutT -= dt; trauma = 0; }
+
+    // heartbeat
+    if ((aliveN <= 2 || suddenDeath) && state === 'playing' && AC) {
+      hbT -= dt;
+      if (hbT <= 0) {
+        hbT = lerp(0.9, 0.55, 1 - arena.R / arena.R0);
+        beep(65, 0.09, 'sine', 0.4); setTimeout(() => beep(50, 0.11, 'sine', 0.35), 140);
+        duckUntil = performance.now() + 260;
+      }
+    }
+
+    // face-off + final slow-mo
+    if (state === 'playing' && aliveN === 2 && prevAliveN > 2 && !faceOffDone) {
+      faceOffDone = true;
+      showBanner(`최후의 2인! ${dispName(aliveList[0])} VS ${dispName(aliveList[1])}`, '#ffd23f', 1.6, true);
+      setSlowmo(0.15, 0.8);
+      beep(392, 0.18, 'triangle', 0.18); setTimeout(() => beep(523, 0.3, 'triangle', 0.18), 160);
+    }
+    prevAliveN = aliveN;
+
+    // camera
+    if (state === 'playing' && slowmo.t <= 0) {
+      if (aliveN <= 2) {
+        let fx = monster.x, fy = groundY(monster.y), cnt = 1;
+        for (const p of aliveList) { fx += p.x; fy += groundY(p.y); cnt++; }
+        fx /= cnt; fy /= cnt;
+        const mR = arena.R * 0.4;
+        cam.tx = clamp(fx, arena.cx - mR, arena.cx + mR);
+        cam.ty = clamp(fy, groundY(arena.cy) - mR * TILT, groundY(arena.cy) + mR * TILT);
+        cam.tz = 1.3;
+      } else { cam.tx = W / 2; cam.ty = H * 0.5; cam.tz = 1; }
+    }
+    const ck = 1 - Math.pow(0.94, fm);
+    cam.x += (cam.tx - cam.x) * ck; cam.y += (cam.ty - cam.y) * ck; cam.zoom += (cam.tz - cam.zoom) * ck;
+
+    // ---------- monster AI ----------
+    const M = monster;
+    M.mouthPh += dt * (4 + (M.lastSpd || 0) * 1.5);   // chomping speeds up with movement
+    if (M.belly > 0) M.belly = Math.max(0, M.belly - dt * 2.5);
+
+    // gluttony governor: schedule aliveN from N@8s → 2@50s
+    const N0 = players.length;
+    const schedT = a => 8 + 42 * (N0 - a) / Math.max(1, N0 - 2);
+    const aheadSec = state === 'playing' ? schedT(aliveN) - gameT : 0;   // >0 = eating too fast
+    const behindSec = -aheadSec;
+    M.hunger = clamp(behindSec / 8, 0, 1);   // 0..1 speed boost driver
+
+    const enr = suddenDeath;
+    const runnerBase = 2.2 * sc;
+    let cruise = runnerBase * 0.93 * (1 + M.hunger * 0.45) * (enr ? 1.3 : 1)
+      * (aliveN <= 2 ? 1.15 : 1) * (gameT >= COLLAPSE_TIME ? 1.6 : 1);
+    if (gameT < 8) cruise *= 0.6;
+
+    // state machine (msT pauses while dizzy/tantrum overlays play, so skid/gulp aren't consumed blind)
+    if (M.dizzyT <= 0 && M.tantrumT <= 0) M.msT -= dt;
+    const target = M.lock >= 0 ? players[M.lock] : null;
+
+    if (M.dizzyT > 0) { M.dizzyT -= dt; }
+    else if (M.tantrumT > 0) { M.tantrumT -= dt; M.h += dt * 12; if (M.tantrumT <= 0) sfx('growl', 300, d => beep(70, 0.25, 'sawtooth', 0.18 * d)); }
+    else if (M.state === 'windup') {
+      if (M.msT <= 0) {
+        M.state = 'lunge'; M.msT = 0.3; M.lungeAte = 0; M.minLockDist = 1e9;
+        // panic dash chance (the near-miss engine)
+        if (target && target.alive && target.dashCd <= 0 && target.tripT <= 0 && target.consecSaves < 2) {
+          let odds = gameT < 20 ? 0.55 : lerp(0.55, 0.30, (gameT - 20) / 25);
+          if (suddenDeath) odds = 0.15;
+          if (Math.random() < odds) {
+            const ang = Math.atan2(target.y - M.y, target.x - M.x) + (Math.random() < 0.5 ? 1.7 : -1.7);
+            target.dashT = 0.3; target.dashCd = 3 * target.dashSkill * rand(0.8, 1.2);
+            target.vx = Math.cos(ang) * runnerBase * 2.2 * target.spd;
+            target.vy = Math.sin(ang) * runnerBase * 2.2 * target.spd;
+            target.consecSaves++;
+            sfx('whoosh', 150, d => beep(600, 0.08, 'sine', 0.1 * d, 900));
+          }
+        }
+        // once-per-match blackout: lights out as the jaws close
+        if (!blackoutUsed && gameT > 25 && gameT < 40 && aliveN >= 6) {
+          blackoutUsed = true; blackoutT = 0.6;
+        }
+      }
+    } else if (M.state === 'lunge') {
+      if (M.msT <= 0) {
+        if (M.lungeAte === 0) {   // WHIFF
+          M.state = 'skid'; M.msT = 0.6;
+          M.whiffsOnLock++;
+          spawnParticles(M.x, groundY(M.y), 'rgba(200,200,220,0.6)', 8, 3);
+          sfx('clack', 90, d => { beep(95, 0.04, 'square', 0.14 * d); setTimeout(() => beep(85, 0.04, 'square', 0.12 * d), 60); });
+          if (target && target.alive && M.minLockDist < M.r + target.r + 8 * sc) {
+            addFloater(target.x, groundY(target.y) - 44, '아슬아슬!', '#3dff8a', true);
+            if (freezeT <= 0) freezeT = 0.06;
+          }
+          // a dodged lunge usually breaks the monster's interest — an escape is a real escape,
+          // not a stay of execution (50% on first whiff, always on second; final duel excluded)
+          if (target && target.alive && aliveN > 2 && (M.whiffsOnLock >= 2 || Math.random() < 0.5)) {
+            addFloater(target.x, groundY(target.y) - 62, '살았다!', '#3dff8a', true);
+            M.lockPrev = target.id; M.lockRepeat = 2;   // next pick must be someone else
+            dropLock(M);
+          }
+        } else {                  // ATE — digest
+          M.state = 'gulp';
+          let digest = aheadSec > 0 ? clamp(1.2 * aheadSec, 0.6, 3.5) : 0.6;
+          if (gameT < 15) digest = Math.max(digest, 1.5);
+          if (enr) digest = Math.max(0.3, digest * 0.4);
+          M.msT = digest;
+          if (M.lungeAte === 2) showBanner('더블 냠!!', '#ffd23f');
+          else if (M.lungeAte >= 3) { showBanner('트리플 냠!!!', '#ffd23f', 1.4, true); fireFlash(); }
+          M.whiffsOnLock = 0; M.consecWhiffLocks = 0;
+          dropLock(M);
+        }
+      }
+    } else if (M.state === 'skid' || M.state === 'gulp') {
+      if (M.msT <= 0) M.state = 'idle';
+    }
+
+    // lock management (idle/cruise only)
+    if (M.state === 'idle' && M.dizzyT <= 0 && M.tantrumT <= 0 && state === 'playing') {
+      if (M.lock >= 0 && !(players[M.lock] && players[M.lock].alive)) dropLock(M);   // stale-lock sweep
+      if (M.lureT > 0) M.lureT -= dt;
+      if (M.lock < 0 && gameT > 4.5 && M.lureT <= 0 && aliveN > 0) {
+        // weighted-random among 3 nearest
+        const sorted = aliveList.slice().sort((a, b) =>
+          ((a.x - M.x) ** 2 + (a.y - M.y) ** 2) - ((b.x - M.x) ** 2 + (b.y - M.y) ** 2)).slice(0, 3);
+        const w = [3, 2, 1]; let tot = 0;
+        const cand = sorted.filter(p => !(p.id === M.lockPrev && M.lockRepeat >= 2));
+        const pool = cand.length ? cand : sorted;
+        pool.forEach((p, i) => tot += w[i] || 1);
+        let roll = Math.random() * tot, pick = pool[0];
+        pool.forEach((p, i) => { roll -= w[i] || 1; if (roll > 0 && pool[i + 1]) pick = pool[i + 1]; });
+        if (pick) {
+          M.lock = pick.id; M.lockT = 0; M.coverT = 0; M.whiffsOnLock = 0; M.minLockDist = 1e9;
+          M.lockRepeat = (pick.id === M.lockPrev) ? M.lockRepeat + 1 : 1;
+          M.lockPrev = pick.id;
+          addFloater(pick.x, groundY(pick.y) - 46, '!', '#ff5050', true);
+          sfx('lock', 300, d => { beep(330, 0.07, 'square', 0.1 * d); setTimeout(() => beep(440, 0.07, 'square', 0.1 * d), 80); });
+        }
+      }
+      if (target && target.alive) {
+        M.lockT += dt;
+        const d = Math.hypot(target.x - M.x, target.y - M.y);
+        // pillar LOS break
+        let covered = false;
+        for (const pl of pillars) {
+          if (!pl.alive) continue;
+          const t = clamp(((pl.x - M.x) * (target.x - M.x) + (pl.y - M.y) * (target.y - M.y)) / (d * d || 1), 0, 1);
+          const px = M.x + (target.x - M.x) * t, py = M.y + (target.y - M.y) * t;
+          if (Math.hypot(pl.x - px, pl.y - py) < pl.r * 0.9) { covered = true; break; }
+        }
+        M.coverT = covered ? M.coverT + dt : 0;
+        // a closer snack crossing its path distracts the monster — targets keep rotating,
+        // so being locked is a scare, not a death sentence (off in the final duel)
+        if (aliveN > 2 && Math.random() < dt * 1.5) {
+          let closest = null, cd2 = 1e9;
+          for (const q of aliveList) {
+            if (q.id === M.lock) continue;
+            const dq = Math.hypot(q.x - M.x, q.y - M.y);
+            if (dq < cd2) { cd2 = dq; closest = q; }
+          }
+          if (closest && cd2 < d * 0.55) {
+            M.lock = closest.id; M.lockT = 0; M.coverT = 0; M.whiffsOnLock = 0; M.minLockDist = 1e9;
+            M.lockRepeat = 1; M.lockPrev = closest.id;
+            addFloater(closest.x, groundY(closest.y) - 46, '!', '#ff5050', true);
+            sfx('lock', 300, dk => beep(392, 0.07, 'square', 0.1 * dk));
+          }
+        }
+        // NOTE: no distance-based lock drop — on a shrunken arena "R*1.1" is always
+        // exceeded and the monster would drop every lock instantly (endless stalemate)
+        if (M.coverT > 1.5) { dropLock(M); addFloater(M.x, groundY(M.y) - 50, '?', '#cfcff0', true); }
+        else if (M.lockT > 4) {
+          dropLock(M);
+          M.consecWhiffLocks++;
+          if (M.consecWhiffLocks >= 2) { M.tantrumT = 1; M.consecWhiffLocks = 0; sfx('growl', 300, d2 => beep(60, 0.4, 'sawtooth', 0.2 * d2)); }
+        }
+        // lunge trigger (only if the lock didn't just switch this frame — d is stale then)
+        else if (gameT > 6 && M.lock === target.id && d < (M.r + target.r) * (2.6 + M.hunger * 1.2) && M.state === 'idle') {
+          // eat-cadence guards (gap scales with headcount — a 30-runner match needs ~1.3s cadence)
+          eatEvents = eatEvents.filter(t2 => gameT - t2 < 3);
+          const minGap = Math.min(2.5, 0.9 * 42 / Math.max(1, N0 - 2)) * (enr ? 0.5 : 1);
+          const cadenceOk = gameT - lastEatT > minGap && (gameT > 20 || eatEvents.length < 2);
+          if (cadenceOk) {
+            M.state = 'windup'; M.msT = enr ? 0.18 : 0.30;
+            sfx('windup', 200, d2 => beep(180, 0.12, 'sawtooth', 0.12 * d2, 120));
+          }
+        }
+      }
+    }
+
+    // monster movement
+    let mSpd = 0;
+    if (M.dizzyT > 0 || M.tantrumT > 0) mSpd = 0;
+    else if (M.state === 'windup') mSpd = cruise * 0.1;
+    else if (M.state === 'lunge') mSpd = cruise * 2.2;
+    else if (M.state === 'skid') mSpd = cruise * 0.3;
+    else if (M.state === 'gulp') mSpd = cruise * 0.35;
+    else mSpd = cruise;
+
+    let aimX = M.x + Math.cos(M.h), aimY = M.y + Math.sin(M.h);
+    if (M.lureT > 0 && M.state === 'idle') { aimX = M.lureX; aimY = M.lureY; }
+    else if (target && target.alive) {
+      // intercept lead: after whiffs, when hungry, in the final duel, or at collapse
+      const lead = (M.whiffsOnLock >= 2 || M.hunger > 0.5 || aliveN <= 2 || gameT >= COLLAPSE_TIME) ? 21 : 0;
+      aimX = target.x + target.vx * lead; aimY = target.y + target.vy * lead;
+    } else if (M.state === 'idle') {
+      // wander toward arena center-ish
+      if (Math.random() < 0.01) M.h += rand(-1, 1);
+      aimX = arena.cx + Math.cos(M.h) * 50; aimY = arena.cy + Math.sin(M.h) * 50;
+    }
+    M.lastSpd = mSpd;
+    const wantA = Math.atan2(aimY - M.y, aimX - M.x);
+    const spdRatio = mSpd / (cruise || 1);
+    const maxTurn = (M.state === 'lunge' ? 0.8 : (3.2 - 0.8 * spdRatio) * (enr ? 1.15 : 1));
+    M.h += clamp(angDiff(wantA, M.h), -maxTurn * dt, maxTurn * dt);
+    M.x += Math.cos(M.h) * mSpd * fm;
+    M.y += Math.sin(M.h) * mSpd * fm;
+
+    // monster wall clamp
+    {
+      const dc = Math.hypot(M.x - arena.cx, M.y - arena.cy);
+      const maxD = arena.R - M.r * 0.7;
+      if (dc > maxD) {
+        M.x = arena.cx + (M.x - arena.cx) / dc * maxD;
+        M.y = arena.cy + (M.y - arena.cy) / dc * maxD;
+        if (M.state === 'lunge') M.msT = Math.min(M.msT, 0.05);   // wall ends a lunge fast
+      }
+    }
+    // pillar BONK (weak avoidance is intentional — comedy)
+    for (const pl of pillars) {
+      if (!pl.alive) continue;
+      const d = Math.hypot(pl.x - M.x, pl.y - M.y), minD = pl.r + M.r * 0.6;
+      if (d < minD) {
+        M.x = pl.x + (M.x - pl.x) / (d || 1) * minD;
+        M.y = pl.y + (M.y - pl.y) / (d || 1) * minD;
+        if (M.state === 'lunge') {
+          M.state = 'skid'; M.msT = 0.5; M.dizzyT = 0.8;
+          if (M.lungeAte > 0) { M.whiffsOnLock = 0; M.consecWhiffLocks = 0; }   // it DID eat — mirror the gulp resets
+          pl.cracks++;
+          addFloater(pl.x, groundY(pl.y) - 60, '띵~', '#ffd23f', true);
+          addTrauma(0.3);
+          spawnParticles(pl.x, groundY(pl.y) - 30, 'rgba(200,190,255,0.8)', 10, 4);
+          sfx('bonk', 200, d2 => beep(70, 0.2, 'square', 0.18 * d2, 45));
+          if (pl.cracks >= 3) pl.crumbleT = 0.15;
+          if (enr) pl.crumbleT = 0.15;
+        } else if (M.state === 'idle') {
+          M.h += 0.4 * (angDiff(Math.atan2(M.y - pl.y, M.x - pl.x), M.h) > 0 ? 1 : -1);
+        }
+      }
+    }
+
+    // eat check during lunge (mouth arc ±55°, up to 3 per lunge)
+    if (M.state === 'lunge' && M.lungeAte < 3) {
+      for (const p of aliveList) {
+        if (!p.alive) continue;
+        const dx = p.x - M.x, dy = p.y - M.y, d = Math.hypot(dx, dy);
+        if (p.id === M.lock) M.minLockDist = Math.min(M.minLockDist, d);
+        if (d < M.r * 0.85 + p.r * 0.6) {
+          const aOff = Math.abs(angDiff(Math.atan2(dy, dx), M.h));
+          if (aOff < 0.96 && gameT >= 8) {   // pre-8s connects are forced whiffs
+            if (M.lungeAte === 0) eatEvents.push(gameT);
+            eatRunner(p);
+            if (players.filter(q => q.alive).length === 1 && !finalSlowmoDone) {
+              finalSlowmoDone = true;
+              setSlowmo(0.3, 0.9);
+              cam.tx = M.x; cam.ty = groundY(M.y); cam.tz = 1.5;
+            }
+            if (state !== 'playing') break;                 // win decided — stop the jaws
+            if (M.lungeAte >= 3) break;
+            if (gameT < 15 && M.lungeAte >= 2) break;       // early triple = quarter of the field, too cruel
+          }
+        }
+      }
+    }
+
+    // ---------- runners ----------
+    const panicR = arena.R * 0.45;
+    for (const p of players) {
+      if (!p.alive) continue;
+
+      const dxm = p.x - M.x, dym = p.y - M.y;
+      const dM = Math.hypot(dxm, dym) || 1;
+      const fear = clamp(1 - dM / (panicR * p.courage), 0, 1);
+      const isLocked = M.lock === p.id;
+      const panicked = fear > 0.15 || isLocked;
+
+      p.dashCd = Math.max(0, p.dashCd - dt);
+      if (p.consecSaves > 0 && gameT - lastEatT > 5 && !isLocked) p.consecSaves = 0;
+
+      // trip state falls through to the shared clamps below — a downed runner must
+      // still respect the (shrinking) wall and pillars
+      if (p.tripT > 0) {
+        p.tripT -= dt;
+        p.phase += dt * 20;   // kicking legs
+        const fr = Math.pow(0.8, fm);
+        p.vx *= fr; p.vy *= fr;
+      } else if (p.dashT > 0) {
+        p.dashT -= dt;
+        p.trail.push({ x: p.x, y: p.y, life: 0.5 });
+        if (p.trail.length > 4) p.trail.shift();
+      } else {
+        // steering blend
+        let sx2 = 0, sy2 = 0;
+        // flee
+        const wF = 0.3 + fear * fear * 3;
+        sx2 += (dxm / dM) * wF; sy2 += (dym / dM) * wF;
+        // wall tangent
+        const dc = Math.hypot(p.x - arena.cx, p.y - arena.cy);
+        if (dc > arena.R * 0.78) {
+          const nx = (p.x - arena.cx) / (dc || 1), ny = (p.y - arena.cy) / (dc || 1);
+          const tsgn = ((-ny) * dxm + nx * dym) > 0 ? 1 : -1;   // tangent that increases monster distance
+          sx2 += (-ny * tsgn) * 1.5 - nx * 0.6;
+          sy2 += (nx * tsgn) * 1.5 - ny * 0.6;
+        }
+        // pillar repulsion
+        for (const pl of pillars) {
+          if (!pl.alive) continue;
+          const dxp = p.x - pl.x, dyp = p.y - pl.y, dp = Math.hypot(dxp, dyp) || 1;
+          if (dp < pl.r + p.r * 3) { sx2 += (dxp / dp) * 1.2; sy2 += (dyp / dp) * 1.2; }
+        }
+        // separation (nearest only)
+        let nn = null, nd = 1e9;
+        for (const q of aliveList) {
+          if (q === p) continue;
+          const d2 = (q.x - p.x) ** 2 + (q.y - p.y) ** 2;
+          if (d2 < nd) { nd = d2; nn = q; }
+        }
+        if (nn && nd < (p.r * 2.4) ** 2) {
+          const d2 = Math.sqrt(nd) || 1;
+          sx2 += (p.x - nn.x) / d2 * 0.5; sy2 += (p.y - nn.y) / d2 * 0.5;
+        }
+        // wander
+        p.wanderA += rand(-0.5, 0.5) * dt * 4;
+        sx2 += Math.cos(p.wanderA) * 0.4; sy2 += Math.sin(p.wanderA) * 0.4;
+
+        // fatigue veer (wrong-way panic comedy)
+        if (isLocked) {
+          p.veerRoll += dt;
+          if (p.veerRoll > 0.9) {
+            p.veerRoll = 0;
+            const odds = lerp(0.12, 0.22, gameT / 30);
+            if (Math.random() < odds) { p.veerT = 0.25; p.veerDir = Math.random() < 0.5 ? 1 : -1; addFloater(p.x, groundY(p.y) - 40, '!?', '#ffb03d'); }
+          }
+        }
+        let ang = Math.atan2(sy2, sx2);
+        if (p.veerT > 0) { p.veerT -= dt; ang += 2.1 * p.veerDir; }
+
+        const base = 2.2 * sc * p.spd;
+        let spd = base * (0.5 + 0.5 * fear + (isLocked ? 0.3 : 0));
+        if (suddenDeath && Math.hypot(p.x - arena.cx, p.y - arena.cy) > arena.R * 0.85) spd *= 0.6;
+        const want = { x: Math.cos(ang) * spd, y: Math.sin(ang) * spd };
+        const k = 1 - Math.pow(0.86, fm);
+        p.vx += (want.x - p.vx) * k;
+        p.vy += (want.y - p.vy) * k;
+
+        // trip roll while panicked
+        if (panicked) {
+          p.tripRoll += dt;
+          if (p.tripRoll > 0.8) {
+            p.tripRoll = 0;
+            const trippingNow = players.filter(q => q.alive && q.tripT > 0).length;
+            let odds = 0.10 * p.clumsy;
+            if (aliveN <= 4) odds *= 0.5;
+            if (aliveN === 2 && M.state !== 'lunge') odds = 0;
+            if (trippingNow < 2 && Math.random() < odds) {
+              p.tripT = 0.5;
+              addFloater(p.x, groundY(p.y) - 36, '아이쿠!', '#ffb03d', true);
+              spawnParticles(p.x, groundY(p.y), 'rgba(180,170,160,0.7)', 6, 2);
+            }
+          }
+        } else p.tripRoll = 0;
+      }
+
+      p.x += p.vx * fm; p.y += p.vy * fm;
+
+      // wall clamp (tangential slide — rim never kills, only the monster does)
+      {
+        const dc2 = Math.hypot(p.x - arena.cx, p.y - arena.cy);
+        const maxD = arena.R - p.r * 0.9;
+        if (dc2 > maxD) {
+          const nx = (p.x - arena.cx) / dc2, ny = (p.y - arena.cy) / dc2;
+          p.x = arena.cx + nx * maxD; p.y = arena.cy + ny * maxD;
+          const vn = p.vx * nx + p.vy * ny;
+          if (vn > 0) { p.vx -= nx * vn; p.vy -= ny * vn; }
+        }
+      }
+      // pillar clamp
+      for (const pl of pillars) {
+        if (!pl.alive) continue;
+        const d = Math.hypot(p.x - pl.x, p.y - pl.y), minD = pl.r + p.r * 0.6;
+        if (d < minD) {
+          p.x = pl.x + (p.x - pl.x) / (d || 1) * minD;
+          p.y = pl.y + (p.y - pl.y) / (d || 1) * minD;
+        }
+      }
+
+      // z hop physics
+      if (p.z > 0 || p.vz !== 0) {
+        p.vz -= 1500 * dt; p.z += p.vz * dt;
+        if (p.z <= 0) { p.z = 0; p.vz = 0; }
+      }
+
+      const spdNow = Math.hypot(p.vx, p.vy);
+      p.phase += dt * (3 + spdNow * 2.6);
+      // eyes: track the monster in fear range, else movement
+      if (dM < arena.R * 0.7) { p.lookX = -dxm / dM; p.lookY = -dym / dM; }
+      else if (spdNow > 0.3) { p.lookX = p.vx / spdNow; p.lookY = p.vy / spdNow; }
+      p.squash *= Math.pow(0.85, fm);
+
+      // trail decay
+      for (let i = p.trail.length - 1; i >= 0; i--) {
+        p.trail[i].life -= dt * 2;
+        if (p.trail[i].life <= 0) p.trail.splice(i, 1);
+      }
+      // sweat drops when locked
+      if (isLocked && Math.random() < dt * 2) {
+        particles.push({ x: p.x + rand(-6, 6), y: groundY(p.y) - 30 * (p.r / 12), vx: rand(-0.5, 0.5), vy: -1.2, life: 0.8, r: 2.5, color: 'rgba(120,200,255,0.9)' });
+      }
+    }
+
+    // anti-stall ladder
+    if (state === 'playing' && gameT - lastEatT > 10 && gameT > 18 && aliveN > 2) {
+      lastEatT = gameT - 5;   // re-arm
+      const target2 = pillars.find(pl => pl.alive && pl.crumbleT <= 0);
+      if (target2) target2.crumbleT = 0.3;
+    }
+
+    // particles / floaters / confetti / ghosts
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx * fm; p.y += p.vy * fm;
+      const dr = Math.pow(0.92, fm); p.vx *= dr; p.vy *= dr;
+      p.life -= dt * 2.2;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+    for (let i = floaters.length - 1; i >= 0; i--) {
+      const f = floaters[i]; f.y += f.vy * fm; f.life -= dt * 1.3;
+      if (f.life <= 0) floaters.splice(i, 1);
+    }
+    for (let i = confetti.length - 1; i >= 0; i--) {
+      const c = confetti[i];
+      c.x += c.vx * fm; c.y += c.vy * fm; c.vy += 0.12 * fm; c.rot += c.vr * fm;
+      if (c.y > H + 20) confetti.splice(i, 1);
+    }
+    updateGhosts(dt, fm);
+
+    trauma *= Math.pow(0.9, fm);
+    if (aliveEl._v !== aliveN) { aliveEl._v = aliveN; aliveEl.textContent = aliveN; }
+    window.__st = { t: Math.round(gameT * 10) / 10, aliveNF: aliveN, state, sd: suddenDeath, eats: monster.eats, lock: monster.lock };
+  }
+
+  function dropLock(M) { M.lock = -1; M.lockT = 0; M.coverT = 0; }
+
+  function updateGhosts(dt, fm) {
+    const k = 1 - Math.pow(0.96, fm);   // dt-scaled — same convention as the camera lerp
+    ghosts.forEach((g, i) => {
+      g.t += dt;
+      const n = Math.max(1, ghosts.length);
+      const a = Math.PI + 0.35 + (i / Math.max(1, n - 1 || 1)) * (Math.PI - 0.7);
+      const tx = arena.cx + Math.cos(a) * (arena.R0 + 26);
+      const ty = groundY(arena.cy + Math.sin(a) * (arena.R0 + 26)) - 14;
+      g.x += (tx - g.x) * k; g.y += (ty - g.y) * k;
+    });
+  }
+
+  // ---------- Drawing ----------
+  function drawRunner(p) {
+    const s = p.r / 12;
+    const gy = groundY(p.y);
+    const spd = Math.hypot(p.vx, p.vy);
+    const runAmt = Math.min(1, spd * 0.32 + 0.15);
+    const bob = p.tripT > 0 ? 0 : Math.abs(Math.sin(p.phase)) * 2.2 * s * runAmt;
+    const sx = p.x, sy = gy - p.z - bob;
+    const isLocked = monster && monster.lock === p.id;
+
+    // dash afterimages
+    for (const t of p.trail) {
+      ctx.globalAlpha = t.life * 0.5;
+      ctx.beginPath(); ctx.arc(t.x, groundY(t.y) - 14 * s, p.r * 0.5, 0, 7);
+      ctx.fillStyle = p.color; ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // lock-on reticle
+    if (isLocked) {
+      ctx.globalAlpha = 0.25 + 0.15 * Math.sin(gameT * 8);
+      ctx.beginPath(); ctx.ellipse(sx, gy, p.r * 1.7, p.r * 0.6, 0, 0, 7);
+      ctx.strokeStyle = '#ff3b4d'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // shadow
+    ctx.globalAlpha = 0.3 / (1 + Math.max(0, p.z) * 0.012);
+    ctx.beginPath(); ctx.ellipse(sx, gy, p.r * 0.95, p.r * 0.32, 0, 0, 7);
+    ctx.fillStyle = '#000'; ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.save();
+    ctx.translate(sx, sy);
+    if (p.tripT > 0) { ctx.rotate(0.2); ctx.scale(1.25, 0.45); }   // face-plant squash
+    else {
+      ctx.rotate(clamp(p.vx * 0.05, -0.3, 0.3));
+      ctx.scale(1 + p.squash * 0.5, 1 - p.squash * 0.5);
+    }
+
+    const hipY = -8.5 * s, neckY = -16 * s, headR = 7.6 * s;
+    const headY = neckY - headR * 0.75;
+    const flail = p.phase;
+    const panic = isLocked || p.dashT > 0;
+    const swing = Math.sin(flail) * (panic ? 1.1 : 0.95 * runAmt);
+    const raise = panic ? 1.8 : 0;
+
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = Math.max(3, 4.2 * s);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.shadowColor = p.color; ctx.shadowBlur = runnerGlow;
+
+    const legL = 8.5 * s, armL = 7.5 * s, shY = neckY + 1.5 * s;
+    ctx.beginPath();
+    ctx.moveTo(0, hipY); ctx.lineTo(Math.sin(swing) * legL, hipY + Math.cos(swing * 0.8) * legL);
+    ctx.moveTo(0, hipY); ctx.lineTo(-Math.sin(swing) * legL, hipY + Math.cos(swing * 0.8) * legL);
+    ctx.moveTo(0, hipY); ctx.lineTo(0, neckY);
+    const aL = 0.55 - swing * 0.9 + raise;
+    const aR = -0.55 + swing * 0.9 - raise;
+    ctx.moveTo(0, shY); ctx.lineTo(Math.sin(aL) * armL, shY + Math.cos(aL) * armL);
+    ctx.moveTo(0, shY); ctx.lineTo(Math.sin(aR) * armL, shY + Math.cos(aR) * armL);
+    ctx.stroke();
+
+    ctx.beginPath(); ctx.arc(0, headY, headR, 0, 7);
+    ctx.fillStyle = p.color; ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.arc(-headR * 0.3, headY - headR * 0.3, headR * 0.32, 0, 7);
+    ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fill();
+
+    const eyeS = isLocked ? 1.3 : 1;
+    const ex = p.lookX * headR * 0.3, ey = p.lookY * headR * 0.22;
+    for (const m of [-1, 1]) {
+      ctx.beginPath(); ctx.arc(m * headR * 0.42, headY - headR * 0.05, headR * 0.30 * eyeS, 0, 7);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.beginPath(); ctx.arc(m * headR * 0.42 + ex, headY - headR * 0.05 + ey, headR * 0.15, 0, 7);
+      ctx.fillStyle = '#222'; ctx.fill();
+    }
+    ctx.restore();
+
+    ctx.font = `900 ${Math.max(10, 8.5 * s)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(0,0,0,.55)';
+    ctx.fillText(p.name, sx + 1, sy - 30 * s + 1);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(p.name, sx, sy - 30 * s);
+  }
+
+  function drawMonster() {
+    const M = monster;
+    if (!M) return;
+    const gy = groundY(M.y);
+    const enr = suddenDeath;
+    const wob = 1 + M.belly * 0.15 + Math.sin(M.mouthPh * 2) * 0.02;
+    const mr = M.r * wob;
+    const col = enr ? `rgba(255,${40 + 20 * Math.sin(gameT * 7.5)},70,1)` : '#ff2d95';
+
+    // shadow
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath(); ctx.ellipse(M.x, gy, mr * 1.05, mr * 0.4, 0, 0, 7);
+    ctx.fillStyle = '#000'; ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.save();
+    ctx.translate(M.x, gy - mr * 0.55);
+
+    // stubby scurrying legs
+    ctx.strokeStyle = col; ctx.lineWidth = Math.max(4, mr * 0.16); ctx.lineCap = 'round';
+    const lph = M.mouthPh * 3;
+    ctx.beginPath();   // feet must clear the body disc (radius mr) or they're invisible
+    ctx.moveTo(-mr * 0.4, mr * 0.55); ctx.lineTo(-mr * 0.42 + Math.sin(lph) * mr * 0.22, mr * 1.14);
+    ctx.moveTo(mr * 0.4, mr * 0.55); ctx.lineTo(mr * 0.42 - Math.sin(lph) * mr * 0.22, mr * 1.14);
+    ctx.stroke();
+
+    // body with pac-man wedge mouth facing heading
+    let mouth = 0.12 + Math.abs(Math.sin(M.mouthPh * 2.2)) * 0.45;
+    if (M.state === 'windup') mouth = 0.9;
+    else if (M.state === 'lunge') mouth = 1.0;
+    else if (M.state === 'gulp') mouth = 0.05;
+    ctx.shadowColor = col; ctx.shadowBlur = 24;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, mr, M.h + mouth, M.h - mouth + 6.2832);
+    ctx.closePath();
+    ctx.fillStyle = col; ctx.fill();
+    ctx.shadowBlur = 0;
+    // inner mouth
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, mr * 0.86, M.h + mouth * 0.9, M.h + mouth * 0.2, true);   // anticlockwise: short jaw wedge, not the whole body
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(60,0,30,0.9)'; ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, mr * 0.86, M.h - mouth * 0.2, M.h - mouth * 0.9, true);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(60,0,30,0.9)'; ctx.fill();
+
+    // eyes (big, tracking)
+    const tgt = M.lock >= 0 ? players[M.lock] : null;
+    let lx = Math.cos(M.h), ly = Math.sin(M.h);
+    if (tgt && tgt.alive) { const d = Math.hypot(tgt.x - M.x, tgt.y - M.y) || 1; lx = (tgt.x - M.x) / d; ly = (tgt.y - M.y) / d; }
+    const eR = mr * 0.24;
+    for (const m of [-1, 1]) {
+      const ex0 = m * mr * 0.34 * Math.cos(M.h + Math.PI / 2), ey0 = -mr * 0.62 + m * mr * 0.1 * Math.sin(M.h + Math.PI / 2);
+      ctx.beginPath(); ctx.arc(ex0, ey0, eR, 0, 7);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      if (M.dizzyT > 0) {
+        // cross eyes
+        ctx.strokeStyle = '#222'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(ex0 - eR * 0.5, ey0 - eR * 0.5); ctx.lineTo(ex0 + eR * 0.5, ey0 + eR * 0.5);
+        ctx.moveTo(ex0 + eR * 0.5, ey0 - eR * 0.5); ctx.lineTo(ex0 - eR * 0.5, ey0 + eR * 0.5);
+        ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.arc(ex0 + lx * eR * 0.45, ey0 + ly * eR * 0.3, eR * 0.5, 0, 7);
+        ctx.fillStyle = '#1a0210'; ctx.fill();
+      }
+      if (enr) {   // angry brows
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(ex0 - eR * m, ey0 - eR * 1.3); ctx.lineTo(ex0 + eR * 0.6 * m, ey0 - eR * 0.7);
+        ctx.stroke();
+      }
+    }
+
+    // dizzy stars
+    if (M.dizzyT > 0) {
+      for (let i = 0; i < 3; i++) {
+        const a = gameT * 6 + i * 2.09;
+        ctx.font = `${Math.max(10, mr * 0.3)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('✦', Math.cos(a) * mr * 0.8, -mr * 1.1 + Math.sin(a) * mr * 0.2);
+      }
+    }
+    // tantrum steam
+    if (M.tantrumT > 0 && Math.random() < 0.4) {
+      particles.push({ x: M.x + rand(-mr, mr) * 0.5, y: gy - mr * 1.4, vx: rand(-0.3, 0.3), vy: -1.5, life: 0.7, r: rand(3, 6), color: 'rgba(220,220,220,0.6)' });
+    }
+    // hunger drool
+    if (M.hunger > 0.5 && Math.random() < 0.15) {
+      particles.push({ x: M.x + Math.cos(M.h) * mr * 0.8, y: gy - mr * 0.3, vx: 0, vy: 0.8, life: 0.6, r: 2.5, color: 'rgba(180,240,255,0.8)' });
+    }
+    ctx.restore();
+  }
+
+  function drawPillar(pl) {
+    const gy = groundY(pl.y);
+    const hgt = arena.R0 * 0.22;
+    const sink = pl.crumbleT > 0 ? clamp(1 - pl.crumbleT / 1.2, 0, 0.5) * hgt : 0;
+    const top = gy - hgt + sink;
+    ctx.save();
+    // column
+    const grad = ctx.createLinearGradient(pl.x - pl.r, 0, pl.x + pl.r, 0);
+    grad.addColorStop(0, 'rgba(70,58,130,.95)');
+    grad.addColorStop(0.5, 'rgba(110,92,190,.95)');
+    grad.addColorStop(1, 'rgba(52,42,100,.95)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(pl.x - pl.r, top, pl.r * 2, gy - top);
+    // base + top ellipses
+    ctx.beginPath(); ctx.ellipse(pl.x, gy, pl.r, pl.r * 0.36, 0, 0, 7);
+    ctx.fillStyle = 'rgba(40,32,80,.95)'; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(pl.x, top, pl.r, pl.r * 0.36, 0, 0, 7);
+    ctx.fillStyle = 'rgba(140,120,220,.95)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(190,170,255,.7)'; ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(140,110,255,.8)'; ctx.shadowBlur = 12;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // cracks
+    if (pl.cracks > 0) {
+      ctx.strokeStyle = 'rgba(20,10,40,.8)'; ctx.lineWidth = 2;
+      for (let i = 0; i < pl.cracks; i++) {
+        const cy0 = top + (gy - top) * (0.25 + i * 0.25);
+        ctx.beginPath();
+        ctx.moveTo(pl.x - pl.r * 0.6, cy0);
+        ctx.lineTo(pl.x - pl.r * 0.1, cy0 + 6);
+        ctx.lineTo(pl.x + pl.r * 0.3, cy0 - 4);
+        ctx.lineTo(pl.x + pl.r * 0.7, cy0 + 5);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawGhost(g) {
+    const s = 7;
+    const bobY = Math.sin(g.t * 3 + g.seat) * 3;
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.translate(g.x, g.y + bobY);
+    ctx.beginPath();
+    ctx.arc(0, 0, s, Math.PI, 0);
+    ctx.lineTo(s, s * 0.9);
+    for (let i = 0; i < 3; i++) ctx.quadraticCurveTo(s - (i * 2 + 1) * s / 3, s * 1.25, s - (i + 1) * 2 * s / 3, s * 0.9);
+    ctx.closePath();
+    ctx.fillStyle = g.color; ctx.fill();
+    // X eyes (skirt scallops all dip below the hem — control y 1.25s)
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6;
+    for (const m of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(m * 3 - 2, -3); ctx.lineTo(m * 3 + 2, 1);
+      ctx.moveTo(m * 3 + 2, -3); ctx.lineTo(m * 3 - 2, 1);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- Render ----------
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    const bg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H)*0.7);
+    bg.addColorStop(0, '#141230'); bg.addColorStop(1, '#07070f');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.translate(W * 0.5, H * 0.5);
+    ctx.scale(cam.zoom, cam.zoom);
+    ctx.translate(-cam.x, -cam.y);
+    const shakePx = trauma * trauma * 14;
+    if (shakePx > 0.3 && timeScale > 0.999 && cam.zoom < 1.001) {
+      ctx.translate(rand(-shakePx, shakePx), rand(-shakePx, shakePx));
+    }
+
+    const { cx, cy, R } = arena;
+    const RT = R * TILT;
+    const wallH = Math.max(18, R * 0.14);
+    runnerGlow = players.filter(p => p.alive).length > 15 ? 0 : 12;   // glow is O(n)-expensive at 30 runners
+
+    if (R > 0) {
+      const wg = ctx.createLinearGradient(0, cy, 0, cy + RT + wallH);
+      wg.addColorStop(0, 'rgba(64,54,118,.95)');
+      wg.addColorStop(1, 'rgba(16,12,36,.95)');
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, R, RT, 0, 0, Math.PI, false);
+      ctx.ellipse(cx, cy + wallH, R, RT, 0, Math.PI, 0, true);
+      ctx.closePath();
+      ctx.fillStyle = wg; ctx.fill();
+
+      const g = ctx.createRadialGradient(cx, cy - RT * 0.25, R * 0.1, cx, cy, R);
+      g.addColorStop(0, 'rgba(86,74,150,.85)');
+      g.addColorStop(0.7, 'rgba(52,44,100,.85)');
+      g.addColorStop(1, 'rgba(38,32,78,.9)');
+      ctx.beginPath(); ctx.ellipse(cx, cy, R, RT, 0, 0, 7);
+      ctx.fillStyle = g; ctx.fill();
+
+      ctx.save();
+      ctx.beginPath(); ctx.ellipse(cx, cy, R, RT, 0, 0, 7);
+      if (suddenDeath) {
+        const a = 0.6 + 0.3 * Math.sin(gameT * Math.PI * 2 * 1.2);
+        ctx.strokeStyle = `rgba(255,50,70,${a})`;
+        ctx.shadowColor = 'rgba(255,40,60,.8)';
+      } else {
+        ctx.strokeStyle = 'rgba(255,210,63,.9)';
+        ctx.shadowColor = 'rgba(255,180,60,.8)';
+      }
+      ctx.lineWidth = 4; ctx.shadowBlur = 22;
+      ctx.stroke();
+      const r2 = Math.max(0, R - 14);
+      ctx.beginPath(); ctx.ellipse(cx, cy, r2, r2 * TILT, 0, 0, 7);
+      ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 2; ctx.shadowBlur = 0;
+      ctx.setLineDash([14, 18]); ctx.lineDashOffset = -spin * 40; ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // ghosts (rim gallery) — after the floor so souls stay visible while flying to their seats
+    for (const g of ghosts) drawGhost(g);
+
+    for (const p of particles) {
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * p.life + 0.5, 0, 7);
+      ctx.fillStyle = p.color; ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // depth-sorted entities: pillars + runners + monster
+    const ents = [];
+    for (const pl of pillars) if (pl.alive) ents.push({ y: pl.y, k: 'p', o: pl });
+    for (const p of players) if (p.alive) ents.push({ y: p.y, k: 'r', o: p });
+    if (monster) ents.push({ y: monster.y, k: 'm', o: monster });
+    ents.sort((a, b) => a.y - b.y);
+    for (const e of ents) {
+      if (e.k === 'p') drawPillar(e.o);
+      else if (e.k === 'r') drawRunner(e.o);
+      else drawMonster();
+    }
+
+    for (const f of floaters) {
+      ctx.globalAlpha = Math.max(0, f.life);
+      ctx.font = `900 ${f.big ? 30 : 22}px sans-serif`; ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillText(f.text, f.x + 2, f.y + 2);
+      ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.restore();   // end camera
+
+    // blackout: dark screen, only eyes + grin glow (a DIM, photosensitivity-safe)
+    if (blackoutT > 0) {
+      const a = clamp(blackoutT / 0.6, 0, 1);
+      const ba = Math.min(1, a * 3);          // eyes/grin fade with the same ramp as the dark
+      ctx.fillStyle = `rgba(2,2,8,${0.9 * ba})`;
+      ctx.fillRect(0, 0, W, H);
+      ctx.save();
+      ctx.globalAlpha = ba;
+      const proj = (wx, wy) => ({ x: (wx - cam.x) * cam.zoom + W * 0.5, y: (wy - cam.y) * cam.zoom + H * 0.5 });
+      for (const p of players) {
+        if (!p.alive) continue;
+        const s = p.r / 12;
+        const hp = proj(p.x, groundY(p.y) - p.z - 21.7 * s);
+        for (const m of [-1, 1]) {
+          ctx.beginPath(); ctx.arc(hp.x + m * 3.2 * s * cam.zoom, hp.y, 2.3 * s * cam.zoom, 0, 7);
+          ctx.fillStyle = '#fff'; ctx.fill();
+        }
+      }
+      if (monster) {
+        const M = monster;
+        const mp = proj(M.x, groundY(M.y) - M.r * 0.55);
+        ctx.save();
+        ctx.translate(mp.x, mp.y);
+        ctx.strokeStyle = '#ff2d95'; ctx.lineWidth = 3;
+        ctx.shadowColor = '#ff2d95'; ctx.shadowBlur = 16;
+        const mr = M.r * cam.zoom;
+        ctx.beginPath();   // glowing grin
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, mr, M.h + 0.8, M.h - 0.8 + 6.2832);
+        ctx.closePath(); ctx.stroke();
+        for (const m of [-1, 1]) {
+          const ex0 = m * mr * 0.34 * Math.cos(M.h + Math.PI / 2), ey0 = -mr * 0.62;
+          ctx.beginPath(); ctx.arc(ex0, ey0, mr * 0.2, 0, 7);
+          ctx.fillStyle = '#fff'; ctx.fill();
+        }
+        ctx.restore();
+      }
+      ctx.restore();   // end blackout alpha
+    }
+
+    // confetti (screen space)
+    for (const c of confetti) {
+      ctx.save();
+      ctx.translate(c.x, c.y); ctx.rotate(c.rot);
+      ctx.fillStyle = c.color;
+      ctx.fillRect(-c.r / 2, -c.r / 2, c.r, c.r * 1.6);
+      ctx.restore();
+    }
+
+    if (flashT > 0) {
+      const a = 0.35 * (flashT / 0.08);
+      const vg = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.25, W/2, H/2, Math.max(W,H)*0.75);
+      vg.addColorStop(0, 'rgba(255,210,63,0)');
+      vg.addColorStop(1, `rgba(255,190,50,${a})`);
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+    }
+    if (banner) {
+      const bt = banner.t, d = banner.dur;
+      const pop = bt < 0.25 ? 1.6 - 2.4 * bt : 1;
+      const alpha = bt > d - 0.3 ? (d - bt) / 0.3 : 1;
+      ctx.save();
+      ctx.globalAlpha = clamp(alpha, 0, 1);
+      ctx.translate(W / 2, H * 0.30);
+      ctx.scale(pop, pop);
+      ctx.font = '900 44px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(10,8,20,.85)';
+      ctx.strokeText(banner.text, 0, 0);
+      ctx.fillStyle = banner.color;
+      ctx.shadowColor = banner.color; ctx.shadowBlur = 24;
+      ctx.fillText(banner.text, 0, 0);
+      ctx.restore();
+    }
+  }
+
+  // ---------- Countdown ----------
+  const CD_SEQ = ['3', '2', '1', 'GO!'];
+  function tickCountdown(dt) {
+    cdT += dt;
+    const idx = Math.floor(cdT / 0.72);
+    if (idx !== cdIdx) {
+      cdIdx = idx;
+      const el = document.getElementById('countdown');
+      if (idx < CD_SEQ.length) {
+        el.style.display = 'flex';
+        el.textContent = CD_SEQ[idx];
+        el.style.color = idx === 3 ? '#25d366' : '#ffd23f';
+        el.animate(
+          [{ transform: 'scale(1.6)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.3)', opacity: 0 }],
+          { duration: 700, easing: 'ease-out' }
+        );
+        beep(idx === 3 ? 660 : 440, 0.12, 'triangle', 0.14);
+      } else {
+        el.style.display = 'none';
+        state = 'playing';
+        showBanner('괴물이 깨어났다!', '#ff2d95', 1.4, true);
+        addTrauma(0.5);
+        beep(60, 0.5, 'sawtooth', 0.2, 40);
+      }
+    }
+  }
+
+  // ---------- Loop (RAF + Worker, hidden-tab safe) ----------
+  const STEP = 1 / 60;
+  let last = performance.now();
+  let lastSizeCheck = 0;
+  function step() {
+    const now = performance.now();
+    let realDt = (now - last) / 1000;
+    if (realDt < STEP * 0.9) return;
+    last = now;
+    if (realDt > 0.05) realDt = 0.05;
+
+    // embedded panes don't always fire 'resize' — poll for viewport drift
+    if (now - lastSizeCheck > 500) {
+      lastSizeCheck = now;
+      if (window.innerWidth !== W || window.innerHeight !== H) { resize(); remapWorld(); }
+    }
+
+    if (freezeT > 0) { freezeT -= realDt; render(); return; }
+    if (flashT > 0) flashT -= realDt;
+    if (banner) { banner.t += realDt; if (banner.t > banner.dur) banner = null; }
+
+    if (slowmo.t > 0) { slowmo.t -= realDt; timeScale = slowmo.ts; }
+    else timeScale += (1 - timeScale) * Math.min(1, realDt * 2.5);
+    const dt = realDt * timeScale;
+    const fm = dt * 60;
+
+    if (state === 'countdown') tickCountdown(realDt);
+    else if (state === 'playing') update(dt, fm);
+    else if (state === 'over') {
+      // keep the scene alive: monster mouth idles, winner flees happily, effects decay
+      if (monster) { monster.mouthPh += dt * 4; if (monster.belly > 0) monster.belly = Math.max(0, monster.belly - dt * 2.5); }
+      if (winner && winner.alive) {
+        winner.phase += dt * 10;
+        winner.vz -= 1500 * dt; winner.z += winner.vz * dt;
+        if (winner.z <= 0) { winner.z = 0; winner.vz = 340; }
+      }
+      const ck = 1 - Math.pow(0.94, fm);
+      cam.x += (cam.tx - cam.x) * ck; cam.y += (cam.ty - cam.y) * ck; cam.zoom += (cam.tz - cam.zoom) * ck;
+      for (let i = confetti.length - 1; i >= 0; i--) {
+        const c = confetti[i]; c.x += c.vx * fm; c.y += c.vy * fm; c.vy += 0.12 * fm; c.rot += c.vr * fm;
+        if (c.y > H + 20) confetti.splice(i, 1);
+      }
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i]; p.x += p.vx * fm; p.y += p.vy * fm;
+        const dr = Math.pow(0.92, fm); p.vx *= dr; p.vy *= dr; p.life -= dt * 2;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+      for (let i = floaters.length - 1; i >= 0; i--) {
+        const f = floaters[i]; f.y += f.vy * fm; f.life -= dt * 1.3;
+        if (f.life <= 0) floaters.splice(i, 1);
+      }
+      updateGhosts(dt, fm);
+      trauma *= Math.pow(0.9, fm);
+    }
+    render();
+  }
+  render();
+  (function raf() { step(); requestAnimationFrame(raf); })();
+  try {
+    const src = 'setInterval(function(){postMessage(0);},1000/70);';
+    const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    w.onmessage = step;
+  } catch (e) {
+    setInterval(step, 1000 / 60);
+  }
+
+  // ---------- Winner screen ----------
+  function showWinner() {
+    const ws = document.getElementById('winScreen');
+    document.getElementById('winName').textContent = winner ? dispName(winner) : '-';
+    const list = document.getElementById('rankList');
+    list.innerHTML = '';
+    const ranked = [];
+    for (let i = eliminationOrder.length - 1; i >= 0; i--) ranked.push(eliminationOrder[i]);
+    const medals = ['🥇', '🥈', '🥉'];
+    const cls = ['gold', 'silver', 'bronze'];
+    ranked.forEach((p, idx) => {
+      const li = document.createElement('li');
+      li.className = 'rankItem' + (idx < 3 ? ' ' + cls[idx] : '');
+      li.innerHTML =
+        `<span class="rankNo">${idx < 3 ? medals[idx] : (idx + 1)}</span>` +
+        `<span class="dot" style="background:${p.color}"></span>` +
+        `<span class="rankName">${esc(dispName(p))}</span>`;
+      list.appendChild(li);
+    });
+    ws.classList.remove('hidden');
+  }
+
+  // ---------- UI ----------
+  const countVal = document.getElementById('countVal');
+  document.getElementById('minus').onclick = () => { playerCount = Math.max(4, playerCount - 1); countVal.textContent = playerCount; };
+  document.getElementById('plus').onclick  = () => { playerCount = Math.min(30, playerCount + 1); countVal.textContent = playerCount; };
+
+  const dispName = p => p.isNum ? p.name + '번' : p.name;
+  const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function begin() {
+    resize();
+    if (!W || !H) { setTimeout(begin, 120); return; }   // pane not laid out yet — a 0-size arena is unrecoverable
+    // custom names (duplicates allowed — players are keyed by id, never by name)
+    const box = document.getElementById('nameBox');
+    const names = box.value.split('\n').map(s => s.trim()).filter(Boolean).map(s => s.slice(0, 8));
+    window.__names = names;
+    if (names.length >= 4) { playerCount = Math.min(30, names.length); countVal.textContent = playerCount; }
+    try { localStorage.setItem('minigame_names', box.value); } catch (e) {}
+    initAudio();
+    if (AC && AC.state === 'suspended') AC.resume();
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('winScreen').classList.add('hidden');
+    setupGame(playerCount);
+    cdT = 0; cdIdx = -1;
+    state = 'countdown';
+  }
+  document.getElementById('startBtn').onclick = begin;
+  document.getElementById('againBtn').onclick = begin;
+  try { const v = localStorage.getItem('minigame_names'); if (v) document.getElementById('nameBox').value = v; } catch (e) {}
+
+  // 폭죽: ambiguous chaos — can save your favorite or doom another
+  let lastBoom = 0;
+  const boomBtn = document.getElementById('boomBtn');
+  boomBtn.onclick = () => {
+    if (state !== 'playing') return;
+    const now = performance.now();
+    if (now - lastBoom < 3000) return;
+    lastBoom = now;
+    boomBtn.style.opacity = '0.4';
+    setTimeout(() => { boomBtn.style.opacity = '1'; }, 3000);
+    const a = rand(0, 6.2832), rr = Math.sqrt(Math.random()) * arena.R * 0.7;
+    const bx = arena.cx + Math.cos(a) * rr, by = arena.cy + Math.sin(a) * rr;
+    spawnParticles(bx, groundY(by), '#ffd23f', 24, 6);
+    addTrauma(0.15);
+    sfx('boom', 200, d => { beep(400, 0.05, 'square', 0.2 * d); setTimeout(() => beep(120, 0.25, 'sawtooth', 0.18 * d, 60), 40); });
+    // runners near the bang flee it
+    for (const p of players) {
+      if (!p.alive || p.tripT > 0) continue;
+      const dx = p.x - bx, dy = p.y - by, d = Math.hypot(dx, dy) || 1;
+      if (d < arena.R * 0.5) {
+        const f = 2.2 * arena.scale * 1.5;
+        p.vx += dx / d * f; p.vy += dy / d * f;
+        p.vz = Math.max(p.vz, 140);
+      }
+    }
+    // the monster investigates — unless mid-bite (never cancels a committed chomp)
+    if (monster && monster.state === 'idle' && timeScale > 0.999) {
+      dropLock(monster);
+      monster.lureT = 0.8; monster.lureX = bx; monster.lureY = by;
+    }
+  };
+})();
+</script>
+</body>
+</html>
