@@ -84,6 +84,20 @@
     transition: transform .08s;
   }
   #boomBtn:active { transform: scale(.92); }
+  #boomBtn:disabled { cursor: not-allowed; opacity: .48; box-shadow: none; }
+  #boomBtn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  #snackCombo {
+    position: fixed; top: 64px; right: 20px; z-index: 5;
+    border: 1px solid rgba(255,210,63,.55); border-radius: 10px;
+    background: rgba(35,18,18,.78); color: #ffd23f;
+    padding: 6px 10px; font-size: 13px; font-weight: 900;
+    pointer-events: none;
+  }
+  #snackCombo[hidden] { display: none; }
+  .srOnly {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
 
   .overlay {
     position: fixed; inset: 0; z-index: 10;
@@ -186,6 +200,16 @@
     font-size: clamp(90px,30vw,260px); font-weight: 900; color: #fff;
     text-shadow: 0 0 60px rgba(255,210,63,.8);
   }
+  @media (max-width: 560px) {
+    #hud { padding: 10px 12px; gap: 8px; }
+    .pill { padding: 7px 10px; font-size: 12px; }
+    .pill .big { font-size: 18px; }
+    #boomBtn { padding: 9px 11px; font-size: 13px; }
+    #snackCombo { top: 56px; right: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -193,8 +217,10 @@
 
 <div id="hud">
   <div class="pill">🏃 남은 인원 <span class="big" id="aliveCount">0</span></div>
-  <button id="boomBtn">🧨 폭죽!</button>
+  <button id="boomBtn" type="button" aria-keyshortcuts="Space" aria-describedby="snackHelp">🍔 야식 투척 ×3</button>
 </div>
+<div id="snackCombo" role="status" aria-live="polite" hidden></div>
+<span id="snackHelp" class="srOnly">경기 중 버튼이나 스페이스 키를 누르면 괴물에게 야식을 던집니다. 한 경기에서 3번 사용할 수 있습니다.</span>
 
 <div id="countdown"></div>
 
@@ -231,6 +257,7 @@
 (() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let W = 0, H = 0, DPR = 1;
 
   const TILT = 0.52;
@@ -260,6 +287,7 @@
     for (const p of players) { mv(p); p.r *= k; }
     for (const pl of pillars) { mv(pl); pl.r *= k; }
     for (const g of ghosts) mv(g);
+    if (snack) mv(snack);
     if (monster) {
       mv(monster);
       monster.r *= k; monster.baseR *= k;
@@ -326,6 +354,17 @@
   let eatEvents = [];               // gameT of eat events (rolling windows)
   let lastEatT = 0;
   let blackoutT = 0, blackoutUsed = false;
+  let snack = null, snacksLeft = 3, lastSnackThrow = -Infinity;
+  let snackCombo = 0, lastSnackIndex = -1;
+  let snackUiReady = false;
+
+  const SNACKS = [
+    { emoji: '🍔', name: '새벽 2시 햄버거', reaction: '다이어트는 내일부터!', color: '#ffd23f', effect: 'belly' },
+    { emoji: '🍕', name: '민트초코 피자', reaction: '이 조합... 실화냐?', color: '#3fd0ff', effect: 'dizzy' },
+    { emoji: '🌶️', name: '불닭 10배', reaction: '맵다 매워!!!', color: '#ff4d6d', effect: 'spicy' },
+    { emoji: '🍗', name: '전설의 닭다리', reaction: '뼈까지 냠!', color: '#ff8a3d', effect: 'belly' },
+    { emoji: '🍩', name: '무지개 도넛', reaction: '당 충전 완료!', color: '#ff2d95', effect: 'sugar' },
+  ];
 
   let trauma = 0, lastEatShake = -9;
   let freezeT = 0;
@@ -340,10 +379,12 @@
   const aliveEl = document.getElementById('aliveCount');
 
   function addTrauma(a) {
+    if (reduceMotion) return;
     if (timeScale < 0.999 || cam.zoom > 1.001) return;
     trauma = Math.min(1, trauma + a);
   }
   function fireFlash() {
+    if (reduceMotion) return;
     const now = performance.now();
     if (now - lastFlash < 2000) return;
     lastFlash = now; flashT = 0.08;
@@ -385,6 +426,8 @@
     gameT = 0; suddenDeath = false; sdPillarT = 0; firstEatDone = false;
     faceOffDone = false; finalSlowmoDone = false; prevAliveN = 99;
     eatEvents = []; lastEatT = 0; blackoutT = 0; blackoutUsed = false;
+    snack = null; snacksLeft = 3; lastSnackThrow = -Infinity;
+    snackCombo = 0; lastSnackIndex = -1;
     freezeT = 0; slowmo = { ts: 1, t: 0 }; timeScale = 1;
     flashT = 0; banner = null; hbT = 0; lastEatShake = -9;
 
@@ -439,6 +482,29 @@
     };
     aliveEl._v = -1;
     document.getElementById('aliveCount').textContent = n;
+  }
+
+  function eatSnack(M) {
+    const eaten = snack;
+    if (!eaten) return;
+    snack = null;
+    snackCombo++;
+    M.lureT = 0;
+    M.belly = 1;
+    M.state = 'gulp';
+    M.msT = 0.9;
+    if (eaten.effect === 'dizzy') M.dizzyT = 1.3;
+    if (eaten.effect === 'spicy') M.tantrumT = 1.1;
+    if (eaten.effect === 'sugar') M.msT = 0.45;
+    addFloater(M.x, groundY(M.y) - M.r * 1.8, eaten.reaction, eaten.color, true);
+    spawnParticles(M.x, groundY(M.y), eaten.color, 28, 6);
+    showBanner(snackCombo >= 2 ? `🔥 야식 콤보 ×${snackCombo}!` : `${eaten.emoji} 야식 순삭!`, eaten.color, 1.4, true);
+    sfx('snack', 150, d => {
+      beep(220 + snackCombo * 70, 0.08, 'triangle', 0.16 * d, 420 + snackCombo * 80);
+      setTimeout(() => beep(120, 0.18, 'square', 0.12 * d, 70), 100);
+    });
+    if (snackCombo >= 2) { fireFlash(); addTrauma(Math.min(0.45, 0.16 * snackCombo)); }
+    updateSnackUi();
   }
 
   // ---------- Eat / eliminate ----------
@@ -559,6 +625,22 @@
     const M = monster;
     M.mouthPh += dt * (4 + (M.lastSpd || 0) * 1.5);   // chomping speeds up with movement
     if (M.belly > 0) M.belly = Math.max(0, M.belly - dt * 2.5);
+
+    // A thrown snack temporarily becomes the monster's highest-priority target.
+    if (snack) {
+      snack.t -= dt;
+      snack.phase += dt * 6;
+      if (snack.t <= 0) {
+        addFloater(snack.x, groundY(snack.y) - 20, '배달 실패!', '#b8b8d8', true);
+        snack = null;
+        snackCombo = 0;
+      } else if (M.state === 'idle' && M.dizzyT <= 0 && M.tantrumT <= 0) {
+        if (M.lock >= 0) dropLock(M);
+        M.lureT = Math.max(M.lureT, 0.25);
+        M.lureX = snack.x; M.lureY = snack.y;
+        if (Math.hypot(M.x - snack.x, M.y - snack.y) < M.r + 18 * sc) eatSnack(M);
+      }
+    }
 
     // gluttony governor: schedule aliveN from N@8s → 2@50s
     const N0 = players.length;
@@ -1166,6 +1248,28 @@
     ctx.restore();
   }
 
+  function drawSnack(s) {
+    const gy = groundY(s.y);
+    const pulse = reduceMotion ? 1 : 1 + Math.sin(s.phase) * 0.08;
+    ctx.save();
+    ctx.translate(s.x, gy - 13 * arena.scale);
+    ctx.scale(pulse, pulse);
+    ctx.globalAlpha = 0.32;
+    ctx.beginPath(); ctx.ellipse(0, 15 * arena.scale, 20 * arena.scale, 7 * arena.scale, 0, 0, 7);
+    ctx.fillStyle = '#000'; ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(0, 0, 22 * arena.scale, 0, 7);
+    ctx.fillStyle = 'rgba(255,255,255,.16)'; ctx.fill();
+    ctx.strokeStyle = s.color; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = `${Math.max(22, 34 * arena.scale)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(s.emoji, 0, 0);
+    ctx.font = `900 ${Math.max(10, 11 * arena.scale)}px sans-serif`;
+    ctx.fillStyle = '#fff';
+    ctx.fillText(s.name, 0, -31 * arena.scale);
+    ctx.restore();
+  }
+
   function drawPillar(pl) {
     const gy = groundY(pl.y);
     const hgt = arena.R0 * 0.22;
@@ -1300,11 +1404,13 @@
     const ents = [];
     for (const pl of pillars) if (pl.alive) ents.push({ y: pl.y, k: 'p', o: pl });
     for (const p of players) if (p.alive) ents.push({ y: p.y, k: 'r', o: p });
+    if (snack) ents.push({ y: snack.y, k: 's', o: snack });
     if (monster) ents.push({ y: monster.y, k: 'm', o: monster });
     ents.sort((a, b) => a.y - b.y);
     for (const e of ents) {
       if (e.k === 'p') drawPillar(e.o);
       else if (e.k === 'r') drawRunner(e.o);
+      else if (e.k === 's') drawSnack(e.o);
       else drawMonster();
     }
 
@@ -1405,10 +1511,12 @@
         el.style.display = 'flex';
         el.textContent = CD_SEQ[idx];
         el.style.color = idx === 3 ? '#25d366' : '#ffd23f';
-        el.animate(
-          [{ transform: 'scale(1.6)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.3)', opacity: 0 }],
-          { duration: 700, easing: 'ease-out' }
-        );
+        if (!reduceMotion) {
+          el.animate(
+            [{ transform: 'scale(1.6)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.3)', opacity: 0 }],
+            { duration: 700, easing: 'ease-out' }
+          );
+        }
         beep(idx === 3 ? 660 : 440, 0.12, 'triangle', 0.14);
       } else {
         el.style.display = 'none';
@@ -1426,6 +1534,7 @@
   let lastSizeCheck = 0;
   function step() {
     const now = performance.now();
+    if (snackUiReady) updateSnackUi();
     let realDt = (now - last) / 1000;
     if (realDt < STEP * 0.9) return;
     last = now;
@@ -1598,37 +1707,82 @@
   document.getElementById('startBtn').onclick = begin;
   document.getElementById('againBtn').onclick = begin;
 
-  // 폭죽: ambiguous chaos — can save your favorite or doom another
-  let lastBoom = 0;
+  // 관중 개입: 괴물에게 3번의 야식을 던져 추격 흐름을 웃기게 비튼다.
   const boomBtn = document.getElementById('boomBtn');
-  boomBtn.onclick = () => {
-    if (state !== 'playing') return;
+  const snackComboEl = document.getElementById('snackCombo');
+  const SNACK_COOLDOWN = 3200;
+  function updateSnackUi() {
     const now = performance.now();
-    if (now - lastBoom < 3000) return;
-    lastBoom = now;
-    boomBtn.style.opacity = '0.4';
-    setTimeout(() => { boomBtn.style.opacity = '1'; }, 3000);
-    const a = rand(0, 6.2832), rr = Math.sqrt(Math.random()) * arena.R * 0.7;
-    const bx = arena.cx + Math.cos(a) * rr, by = arena.cy + Math.sin(a) * rr;
-    spawnParticles(bx, groundY(by), '#ffd23f', 24, 6);
+    const cooldown = Math.max(0, SNACK_COOLDOWN - (now - lastSnackThrow));
+    let label = `🍔 야식 투척 ×${snacksLeft}`;
+    if (state === 'playing' && snack) label = `${snack.emoji} 배달 중…`;
+    else if (state === 'playing' && snacksLeft <= 0) label = '🍽️ 야식 완판';
+    else if (state === 'playing' && cooldown > 0) label = `⏳ ${Math.ceil(cooldown / 1000)}초`;
+    const disabled = state !== 'playing' || !!snack || snacksLeft <= 0 || cooldown > 0;
+    if (boomBtn.textContent !== label) boomBtn.textContent = label;
+    if (boomBtn.disabled !== disabled) boomBtn.disabled = disabled;
+    const ariaLabel = disabled && cooldown > 0
+      ? `야식 투척 재사용까지 ${Math.ceil(cooldown / 1000)}초`
+      : label.replace('…', '');
+    if (boomBtn.getAttribute('aria-label') !== ariaLabel) boomBtn.setAttribute('aria-label', ariaLabel);
+    if (snackCombo >= 2 && state === 'playing') {
+      const comboLabel = `🔥 야식 콤보 ×${snackCombo}`;
+      if (snackComboEl.hidden) snackComboEl.hidden = false;
+      if (snackComboEl.textContent !== comboLabel) snackComboEl.textContent = comboLabel;
+    } else {
+      if (!snackComboEl.hidden) snackComboEl.hidden = true;
+    }
+  }
+  function throwSnack() {
+    const now = performance.now();
+    if (state !== 'playing' || snack || snacksLeft <= 0 || now - lastSnackThrow < SNACK_COOLDOWN) return;
+    lastSnackThrow = now;
+    snacksLeft--;
+    let idx = Math.floor(Math.random() * SNACKS.length);
+    if (idx === lastSnackIndex) idx = (idx + 1) % SNACKS.length;
+    lastSnackIndex = idx;
+    const item = SNACKS[idx];
+    const a = rand(0, 6.2832), rr = arena.R * rand(0.18, 0.26);
+    let bx = monster.x + Math.cos(a) * rr, by = monster.y + Math.sin(a) * rr;
+    const dc = Math.hypot(bx - arena.cx, by - arena.cy);
+    if (dc > arena.R * 0.72) {
+      bx = arena.cx + (bx - arena.cx) / dc * arena.R * 0.72;
+      by = arena.cy + (by - arena.cy) / dc * arena.R * 0.72;
+    }
+    snack = { ...item, x: bx, y: by, t: 6, phase: 0 };
+    spawnParticles(bx, groundY(by), item.color, 24, 6);
+    addFloater(bx, groundY(by) - 40, `${item.emoji} 배달!`, item.color, true);
+    showBanner(`${item.emoji} ${item.name}`, item.color, 1.3, true);
     addTrauma(0.15);
-    sfx('boom', 200, d => { beep(400, 0.05, 'square', 0.2 * d); setTimeout(() => beep(120, 0.25, 'sawtooth', 0.18 * d, 60), 40); });
-    // runners near the bang flee it
+    sfx('delivery', 200, d => {
+      beep(660, 0.08, 'triangle', 0.16 * d);
+      setTimeout(() => beep(880, 0.12, 'triangle', 0.14 * d), 100);
+    });
+    // 배달 착지 충격은 근처 참가자도 밀어 판세를 살짝 흔든다.
     for (const p of players) {
       if (!p.alive || p.tripT > 0) continue;
       const dx = p.x - bx, dy = p.y - by, d = Math.hypot(dx, dy) || 1;
-      if (d < arena.R * 0.5) {
-        const f = 2.2 * arena.scale * 1.5;
+      if (d < arena.R * 0.32) {
+        const f = 2.2 * arena.scale;
         p.vx += dx / d * f; p.vy += dy / d * f;
         p.vz = Math.max(p.vz, 140);
       }
     }
-    // the monster investigates — unless mid-bite (never cancels a committed chomp)
     if (monster && monster.state === 'idle' && timeScale > 0.999) {
       dropLock(monster);
-      monster.lureT = 0.8; monster.lureX = bx; monster.lureY = by;
+      monster.lureT = 0.25; monster.lureX = bx; monster.lureY = by;
     }
-  };
+    updateSnackUi();
+  }
+  boomBtn.onclick = throwSnack;
+  document.addEventListener('keydown', ev => {
+    const typing = /^(INPUT|TEXTAREA)$/.test(ev.target.tagName);
+    const otherButton = ev.target.tagName === 'BUTTON' && ev.target !== boomBtn;
+    if (ev.code !== 'Space' || ev.repeat || typing || otherButton) return;
+    if (state === 'playing') { ev.preventDefault(); throwSnack(); }
+  });
+  snackUiReady = true;
+  updateSnackUi();
 })();
 </script>
 </body>
