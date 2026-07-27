@@ -6,8 +6,8 @@
 <title>밀어내기 배틀 로얄 🏆 | 무료 브라우저 미니게임</title>
 
 <!-- SEO -->
-<meta name="description" content="경쟁자를 밀어내고 최후의 1인이 되는 배틀 로얄 게임. 설치 없이 브라우저에서 바로 무료로 플레이하세요." />
-<meta name="keywords" content="밀어내기 배틀 로얄, 미니게임, 무료게임, 브라우저게임, 배틀로얄, 캐주얼 게임" />
+<meta name="description" content="야구방망이로 경쟁자를 날려버리고 최후의 1인이 되는 배틀 로얄 게임. 설치 없이 브라우저에서 바로 무료로 플레이하세요." />
+<meta name="keywords" content="밀어내기 배틀 로얄, 야구방망이, 미니게임, 무료게임, 브라우저게임, 배틀로얄, 캐주얼 게임" />
 <meta name="author" content="kimdoogi" />
 <meta name="robots" content="index, follow" />
 <meta name="theme-color" content="#0a0a16" />
@@ -19,7 +19,7 @@
 <meta property="og:site_name" content="미니게임 아케이드" />
 <meta property="og:locale" content="ko_KR" />
 <meta property="og:title" content="밀어내기 배틀 로얄 🏆" />
-<meta property="og:description" content="경쟁자를 밀어내고 최후의 1인이 되자! 지금 바로 무료로 플레이." />
+<meta property="og:description" content="야구방망이로 경쟁자를 날려버리고 최후의 1인이 되자! 지금 바로 무료로 플레이." />
 <meta property="og:url" content="https://kimdoogi.github.io/ranking-game/push-royale.html" />
 <meta property="og:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
 <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="밀어내기 배틀 로얄 🏆" />
-<meta name="twitter:description" content="경쟁자를 밀어내고 최후의 1인이 되자! 지금 바로 무료로 플레이." />
+<meta name="twitter:description" content="야구방망이로 경쟁자를 날려버리고 최후의 1인이 되자! 지금 바로 무료로 플레이." />
 <meta name="twitter:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
 
 <!-- Structured data -->
@@ -39,7 +39,7 @@
   "name": "밀어내기 배틀 로얄",
   "url": "https://kimdoogi.github.io/ranking-game/push-royale.html",
   "image": "https://kimdoogi.github.io/ranking-game/assets/og-image.png",
-  "description": "경쟁자를 밀어내고 최후의 1인이 되는 배틀 로얄 게임.",
+  "description": "야구방망이로 경쟁자를 날려버리고 최후의 1인이 되는 배틀 로얄 게임.",
   "inLanguage": "ko-KR",
   "genre": "Casual",
   "gamePlatform": "Web browser",
@@ -204,7 +204,7 @@
 <!-- Start screen -->
 <div class="overlay" id="startScreen">
   <div class="title">밀어내기<br>배틀 로얄</div>
-  <div class="subtitle">서로 밀쳐서 떨어뜨려라! 마지막 1명이 우승 🏆</div>
+  <div class="subtitle">야구방망이로 다 날려버려라! 마지막 1명이 우승 🏆</div>
   <div class="control">
     <label>참가자 추가 <span class="hint"><b>이름 * 4</b> 처럼 입력하고 추가하기 · 중복 OK</span></label>
     <div class="addRow">
@@ -239,8 +239,19 @@
   let W = 0, H = 0, DPR = 1;
 
   const TILT = 0.52;   // 2.5D: vertical squash of the play plane
-  const SD_TIME = 45;  // sudden death (s, game time)
-  const COLLAPSE_TIME = 75; // hard cap: arena collapses to 0
+  const SD_TIME = 32;  // sudden death (s, game time) — bats end matches faster than shoving did
+  const COLLAPSE_TIME = 58; // hard cap: arena collapses to 0
+
+  // ---------- Bat ----------
+  // Everyone carries a bat; body bumps only jostle, swings do the launching.
+  const SW_WIND = 0.15;              // windup (telegraph — readable before the hit lands)
+  const SW_HIT  = 0.11;              // active arc: the only window that can connect
+  const SW_REC  = 0.20;              // follow-through
+  const SW_DUR  = SW_WIND + SW_HIT + SW_REC;
+  const BAT_LEN = 2.15;              // reach past the body, in player radii
+  const BAT_ARC = 2.5;               // radians swept during the active window
+  const BAT_CONE = 0.6;              // hit tolerance off the bat line (rad)
+  const KNOCK_T = 0.3;               // launched: no steering, no speed cap
 
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -397,6 +408,9 @@
         alive: true, falling: false, fallT: 0,
         rot: 0, rotV: 0,
         phase: rand(0, 6.28), squash: 0, lookX: 0, lookY: 1,
+        // bat
+        swingT: -1, swingCd: rand(0.6, 1.7), aim: ang + Math.PI, batSide: 1, hitIds: [],
+        knockT: 0, batHitT: -9, rimGrab: true,
         // drama
         grudge: -1, grudgeT: 0,
         teeter: 0, teeterSave: false, teeterLean: 0, consecSaves: 0, lastTeeterT: -9,
@@ -436,19 +450,99 @@
     }
   }
 
+  // ---------- Bat swings ----------
+  // Phones get a big radius on a small arena, so cap reach against the arena too —
+  // otherwise a bat covers half the ring and everyone is permanently in range.
+  function batReach(p) { return Math.min(p.r * (1 + BAT_LEN), arena.R * 0.30); }
+
+  let lastSwoosh = 0;
+  function startSwing(p) {
+    p.swingT = 0;
+    p.hitIds.length = 0;
+    p.batSide = Math.cos(p.aim) >= 0 ? 1 : -1;      // arc reads as travelling toward the target
+    p.vx += Math.cos(p.aim) * 0.5 * arena.scale;    // step into the pitch
+    p.vy += Math.sin(p.aim) * 0.5 * arena.scale;
+    const now = performance.now();
+    if (now - lastSwoosh > 70) { lastSwoosh = now; beep(880, 0.05, 'sine', 0.035, 300); }
+  }
+
+  // Only the active middle window of a swing can connect; each swing hits a target once.
+  function resolveSwings() {
+    for (const a of players) {
+      if (!a.alive || a.falling || a.swingT < SW_WIND) continue;
+      const prog = (a.swingT - SW_WIND) / SW_HIT;
+      if (prog > 1) continue;
+      const batAng = a.aim + (prog - 0.5) * BAT_ARC * a.batSide;
+      const reach = batReach(a);
+      for (const b of players) {
+        if (b === a || !b.alive || b.falling) continue;
+        if (a.hitIds.includes(b.id)) continue;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d > reach + b.r) continue;
+        const rel = Math.atan2(dy, dx) - batAng;
+        if (Math.abs(Math.atan2(Math.sin(rel), Math.cos(rel))) > BAT_CONE) continue;
+        a.hitIds.push(b.id);
+        batHit(a, b, dx / d, dy / d, batAng);
+      }
+    }
+  }
+
+  function batHit(a, b, nx, ny, batAng) {
+    // power ramps with the match so the opening isn't a bloodbath
+    const pw = suddenDeath ? 1.2 : lerp(0.40, 0.95, gameT / 65);
+    // launch away from the batter, biased along the bat tip's travel
+    const tx = -Math.sin(batAng) * a.batSide, ty = Math.cos(batAng) * a.batSide;
+    let lx = nx + tx * 0.45, ly = ny + ty * 0.45;
+    const ll = Math.hypot(lx, ly) || 1; lx /= ll; ly /= ll;
+
+    const speed = rand(8, 11) * arena.scale * pw;
+    b.vx = lx * speed; b.vy = ly * speed;
+    b.vz = Math.max(b.vz, rand(220, 330) * pw);
+    b.knockT = KNOCK_T;
+    b.batHitT = gameT;
+    b.squash = 0.5;
+    b.grudge = a.id; b.grudgeT = 5;                 // getting clubbed makes it personal
+    // rolled once per hit: does this launch end at the rim clinging on, or clean out?
+    b.rimGrab = suddenDeath ? false : Math.random() < lerp(0.97, 0.15, gameT / 45);
+    a.vx -= lx * speed * 0.14; a.vy -= ly * speed * 0.14;
+    a.squash = Math.max(a.squash, 0.18);
+
+    const hx = b.x - nx * b.r * 0.6, hy = groundY(b.y - ny * b.r * 0.6) - b.z - b.r * 0.9;
+    spawnHitParticles(hx, hy, '#ffd23f', 6 + pw * 4);
+    spawnHitParticles(hx, hy, '#fff', 4);
+    lastCollT = gameT;
+    addTrauma(0.18 + 0.22 * pw);
+    beep(150, 0.09, 'square', 0.16 * pw, 55);       // crack
+    beep(1500, 0.035, 'square', 0.10 * pw);
+
+    const now = performance.now();
+    if (pw > 0.9 && now - lastFreeze > 380 && timeScale > 0.999) {
+      lastFreeze = now;
+      freezeT = 0.05;
+      impactFX = { x: hx, y: hy, nx: lx, ny: ly, t: 0.09 };
+      addFloater(hx, hy - 20, '깡!', '#ffd23f', true);
+    }
+    // no balancing on the rim once a bat lands
+    if (b.teeter > 0) startFall(b);
+  }
+
   // ---------- Fall ----------
   function startFall(p) {
-    p.teeter = 0;
+    p.teeter = 0; p.swingT = -1;
     p.falling = true; p.fallT = 0;
+    const homer = gameT - p.batHitT < 0.8;         // still flying from a bat = home run
     const dc = Math.hypot(p.x - arena.cx, p.y - arena.cy) || 1;
     const nx = (p.x - arena.cx) / dc, ny = (p.y - arena.cy) / dc;
-    p.vx = nx * 2.5 + p.vx * 0.4; p.vy = ny * 2.5 + p.vy * 0.4;
-    p.vz = 130;
+    const keep = homer ? 0.9 : 0.4;                // don't damp a launch on the way out
+    p.vx = nx * 2.5 + p.vx * keep; p.vy = ny * 2.5 + p.vy * keep;
+    p.vz = homer ? Math.max(p.vz, 200) : 130;
     p.rotV = rand(4, 8) * (Math.random() < 0.5 ? -1 : 1);
     const gy = groundY(p.y);
     spawnPoof(p.x, gy, p.color);
-    addFloater(p.x, gy - 30, 'OUT!', '#ff4d6d');
-    addTrauma(0.45);
+    addFloater(p.x, gy - 30, homer ? '홈런!' : 'OUT!', homer ? '#ffd23f' : '#ff4d6d', homer);
+    addTrauma(homer ? 0.6 : 0.45);
+    if (homer) fireFlash();
     lastElimT = gameT; directorOn = false;
 
     // KO chain sound (rising pitch ladder)
@@ -498,6 +592,12 @@
     if (aggrPulseT > 0) { aggr *= 2; aggrPulseT -= dt; }
     if (final2T >= 0) aggr *= 1.3;                          // post-face-off charge
     const maxSp = (suddenDeath ? 10 : 6 + 3 * Math.min(1, gameT / SD_TIME)) * arena.scale;
+
+    // ----- bat cadence: swings come faster as the match heats up -----
+    let cdRate = 1 + 0.015 * gameT + 0.04 * elimCount;
+    if (suddenDeath) cdRate *= 1.6;
+    if (directorOn) cdRate *= 1.2;
+    cdRate = clamp(cdRate, 1, 5);
 
     // anti-dead-air director
     if (!directorOn && gameT - lastElimT > 10 && aliveNF > 4) directorOn = true;
@@ -597,6 +697,15 @@
         continue;
       }
 
+      // --- bat timers ---
+      if (p.knockT > 0) p.knockT -= dt;
+      if (p.swingT >= 0) {
+        p.swingT += dt;
+        if (p.swingT >= SW_DUR) { p.swingT = -1; p.swingCd = rand(1.2, 2.4) / cdRate; }
+      } else if (p.swingCd > 0) p.swingCd -= dt;
+      // a hit interrupts the swing — you can't bat while flying
+      if (p.knockT > 0 && p.swingT >= 0) { p.swingT = -1; p.swingCd = Math.max(p.swingCd, 0.35); }
+
       // seek: grudge target overrides nearest (revenge arc)
       p.grudgeT -= dt; if (p.grudgeT <= 0) p.grudge = -1;
       let near = null, nd = Infinity;
@@ -612,28 +721,45 @@
           if (d < nd) { nd = d; near = q; }
         }
       }
-      if (near) {
+      // stunned players keep flying; planted feet during a swing
+      const ctl = p.knockT > 0 ? 0 : (p.swingT >= 0 ? 0.22 : 1);
+      if (near && ctl > 0) {
         const dx = near.x - p.x, dy = near.y - p.y, d = Math.hypot(dx, dy) || 1;
         const boost = p.grudge >= 0 ? 1.15 : 1;              // revenge = faster
-        p.vx += (dx / d) * aggr * boost * fm;
-        p.vy += (dy / d) * aggr * boost * fm;
-      }
-      p.vx += rand(-0.08, 0.08) * arena.scale * fm;
-      p.vy += rand(-0.08, 0.08) * arena.scale * fm;
+        p.vx += (dx / d) * aggr * boost * ctl * fm;
+        p.vy += (dy / d) * aggr * boost * ctl * fm;
 
-      // opening grace: firm center pull so nobody drifts off while posturing
-      if (gameT < 8) {
+        // aim keeps tracking until the bat commits (start of the active arc)
+        if (p.swingT < 0 || p.swingT < SW_WIND) {
+          const lead = (p.swingT < 0 ? SW_WIND : SW_WIND - p.swingT) * 60;
+          p.aim = Math.atan2(dy + near.vy * lead, dx + near.vx * lead);
+        }
+        // swing when the target is inside reach and the bat is ready
+        if (p.swingT < 0 && p.swingCd <= 0 && d < batReach(p) * 0.95 + near.r * 0.7) {
+          startSwing(p);
+        }
+      }
+      if (p.knockT <= 0) {
+        p.vx += rand(-0.08, 0.08) * arena.scale * fm;
+        p.vy += rand(-0.08, 0.08) * arena.scale * fm;
+      }
+
+      // center pull: bats shove people outward all match, so they keep walking back in.
+      // It fades out so late-game launches actually stick.
+      if (p.knockT <= 0) {
         const dc0 = Math.hypot(p.x - arena.cx, p.y - arena.cy);
-        if (dc0 > arena.R * 0.62) {
-          p.vx -= (p.x - arena.cx) / dc0 * 0.02 * arena.scale * fm;
-          p.vy -= (p.y - arena.cy) / dc0 * 0.02 * arena.scale * fm;
+        if (dc0 > arena.R * 0.55) {
+          const pull = (gameT < 8 ? 0.032 : lerp(0.032, 0.004, (gameT - 8) / 34)) * arena.scale * fm;
+          p.vx -= (p.x - arena.cx) / dc0 * pull;
+          p.vy -= (p.y - arena.cy) / dc0 * pull;
         }
       }
 
-      const fr = Math.pow(0.985, fm);
+      const fr = Math.pow(p.knockT > 0 ? 0.995 : 0.985, fm);
       p.vx *= fr; p.vy *= fr;
       const sp = Math.hypot(p.vx, p.vy);
-      if (sp > maxSp) { p.vx = p.vx / sp * maxSp; p.vy = p.vy / sp * maxSp; }
+      // a bat launch is allowed to break the cruising speed cap — that's the whole point
+      if (sp > maxSp && p.knockT <= 0) { p.vx = p.vx / sp * maxSp; p.vy = p.vy / sp * maxSp; }
 
       p.x += p.vx * fm; p.y += p.vy * fm;
 
@@ -652,15 +778,20 @@
         const nx = (p.x - arena.cx) / (dc || 1), ny = (p.y - arena.cy) / (dc || 1);
         const outSpeed = p.vx * nx + p.vy * ny;
         const teeterCount = players.filter(q => q.teeter > 0).length;
-        if (outSpeed < 3.5 * arena.scale && teeterCount < 2 && p.consecSaves < 2) {
+        // a launched player normally sails clean out — unless this hit rolled a rim grab
+        const launched = p.rimGrab && gameT - p.batHitT < 1.5;
+        const grabs = outSpeed < 3.5 * arena.scale || launched;
+        if (grabs && teeterCount < (launched ? 3 : 2) && p.consecSaves < 2) {
           // enter teeter: clamp to rim, roll the save NOW (hits can still cancel it)
           const hold = Math.max(2, arena.R - p.r * 0.35);
           p.x = arena.cx + nx * hold; p.y = arena.cy + ny * hold;
           p.vx = 0; p.vy = 0;
+          p.swingT = -1; p.knockT = 0;
           p.teeter = rand(0.4, 0.7);
           p.teeterLean = nx * 0.45;
           p.lastTeeterT = gameT;
-          let saveOdds = gameT < 20 ? 0.60 : lerp(0.60, 0.40, (gameT - 20) / 25);
+          // bats send far more traffic to the rim than shoving did — saves have to be kinder
+          let saveOdds = gameT < 30 ? 0.89 : lerp(0.89, 0.45, (gameT - 30) / 22);
           if (suddenDeath) saveOdds = 0.20;
           if (aliveNF <= 2) saveOdds = 0;
           p.teeterSave = Math.random() < saveOdds;
@@ -674,7 +805,10 @@
       }
     }
 
-    // ----- collisions -----
+    // ----- bat swings (the real knockback source) -----
+    resolveSwings();
+
+    // ----- collisions: bodies only jostle now, bats do the launching -----
     for (let i = 0; i < players.length; i++) {
       const a = players[i];
       if (!a.alive || a.falling) continue;
@@ -696,8 +830,8 @@
           const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
           const vn = rvx * nx + rvy * ny;
           if (vn < 0) {
-            // restitution ramps 1.05 → 1.22 over 30s (master pacing lever), 1.35 in SD
-            const rest = suddenDeath ? 1.35 : lerp(1.05, 1.22, gameT / 40);
+            // soft: shoves keep the crowd churning, they no longer eliminate anyone
+            const rest = suddenDeath ? 0.55 : lerp(0.35, 0.5, gameT / 40);
             const jimp = -(1 + rest) * vn / (1 / a.mass + 1 / b.mass);
             const ix = jimp * nx, iy = jimp * ny;
             a.vx -= ix / a.mass; a.vy -= iy / a.mass;
@@ -705,32 +839,21 @@
 
             const svn = -vn / arena.scale;   // impact strength normalized for arena size
             lastCollT = gameT;
-            if (svn > 1.2) {
+            if (svn > 2.5) {
               const mx = (a.x + b.x) / 2, my = groundY((a.y + b.y) / 2);
-              spawnHitParticles(mx, my, '#fff', Math.min(svn, 10));
-              a.squash = b.squash = Math.min(0.5, svn * 0.06);
-              if (svn > 2.2) {
-                const hop = Math.min(300, 60 + svn * 22);
+              spawnHitParticles(mx, my, '#fff', Math.min(svn * 0.6, 6));
+              a.squash = b.squash = Math.min(0.35, svn * 0.04);
+              if (svn > 6) {                                 // only a launched body still slams
+                const hop = Math.min(180, 40 + svn * 12);
                 a.vz = Math.max(a.vz, hop);
                 b.vz = Math.max(b.vz, hop);
+                addTrauma(Math.min(0.2, svn * 0.02));
               }
-              if (svn > 5) addTrauma(Math.min(0.4, svn * 0.045));
-              if (svn > 6) {                                 // grudge: mutual rivals for 4s
-                a.grudge = b.id; a.grudgeT = 4;
-                b.grudge = a.id; b.grudgeT = 4;
-              }
-              // hit-stop on the top-decile hits
-              const now = performance.now();
-              if (svn > 6.5 && now - lastFreeze > 400 && timeScale > 0.999) {
-                lastFreeze = now;
-                freezeT = 0.04 + Math.min(0.03, svn * 0.0025);
-                impactFX = { x: mx, y: my, nx, ny, t: 0.09 };
-              }
-              hitSound(svn);
+              hitSound(svn * 0.7);
             }
-            // hitting a teetering player knocks them straight off ("finish him")
-            if (a.teeter > 0) startFall(a);
-            if (b.teeter > 0) startFall(b);
+            // a teetering rival only gets finished by a body arriving as a projectile
+            if (a.teeter > 0 && b.knockT > 0) startFall(a);
+            if (b.teeter > 0 && a.knockT > 0) startFall(b);
           }
         }
       }
@@ -818,7 +941,6 @@
     const headY = neckY - headR * 0.75;
     const flail = (p.falling || p.teeter > 0) ? (p.falling ? p.fallT * 26 : p.phase) : p.phase;
     const swing = Math.sin(flail) * ((p.falling || p.teeter > 0) ? 1.1 : 0.95 * runAmt);
-    const raise = Math.min(2.2, p.squash * 5 + ((p.falling || p.teeter > 0) ? 1.6 : 0));
 
     ctx.strokeStyle = p.color;
     ctx.lineWidth = Math.max(3, 4.2 * s);
@@ -826,14 +948,57 @@
     ctx.shadowColor = p.color; ctx.shadowBlur = 12;
 
     const legL = 8.5 * s, armL = 7.5 * s, shY = neckY + 1.5 * s;
+
+    // ----- bat pose (angles use the arm convention: 0 = straight down) -----
+    const BAT_REST = -2.55, BAT_WIND = -2.05, BAT_END = 1.6;
+    const bs = p.batSide || 1;
+    let bth, arcA = null, arcB = null;
+    if (p.falling || p.teeter > 0) {
+      bth = BAT_REST + Math.sin(flail) * 0.5;
+    } else if (p.swingT >= 0) {
+      const t = p.swingT;
+      if (t < SW_WIND) {
+        bth = lerp(BAT_REST, BAT_WIND, Math.pow(t / SW_WIND, 0.6));
+      } else if (t < SW_WIND + SW_HIT) {
+        const k = (t - SW_WIND) / SW_HIT;
+        bth = lerp(BAT_WIND, BAT_END, k);
+        arcA = BAT_WIND; arcB = bth;
+      } else {
+        const k = (t - SW_WIND - SW_HIT) / SW_REC;
+        bth = lerp(BAT_END, BAT_REST, k * k);
+        if (k < 0.4) { arcA = lerp(BAT_WIND, BAT_END, 0.5); arcB = bth; }
+      }
+    } else {
+      bth = BAT_REST + Math.sin(p.phase) * 0.10 * runAmt;
+    }
+    bth *= bs;
+    const bux = Math.sin(bth), buy = Math.cos(bth);
+    const gripD = armL * 0.62;
+    const batL = 25 * s * (batReach(p) / (p.r * (1 + BAT_LEN)));   // drawn length matches real reach
+    // hands sit out to the cocked side, so the resting bat runs past the head instead of across the face
+    const anchorX = -bs * 4.6 * s;
+    const hx = anchorX + bux * gripD, hy = shY + buy * gripD;
+
+    // swing swoosh (under the body)
+    if (arcA !== null) {
+      const a0 = Math.PI / 2 - arcA * bs, a1 = Math.PI / 2 - arcB * bs;
+      ctx.save();
+      ctx.globalAlpha = fade * 0.4;
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(2, 3.4 * s);
+      ctx.shadowColor = '#fff'; ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(anchorX, shY, gripD + batL * 0.92, Math.min(a0, a1), Math.max(a0, a1));
+      ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.beginPath();
     ctx.moveTo(0, hipY); ctx.lineTo(Math.sin(swing) * legL, hipY + Math.cos(swing * 0.8) * legL);
     ctx.moveTo(0, hipY); ctx.lineTo(-Math.sin(swing) * legL, hipY + Math.cos(swing * 0.8) * legL);
     ctx.moveTo(0, hipY); ctx.lineTo(0, neckY);
-    const aL = 0.55 - swing * 0.9 + raise;
-    const aR = -0.55 + swing * 0.9 - raise;
-    ctx.moveTo(0, shY); ctx.lineTo(Math.sin(aL) * armL, shY + Math.cos(aL) * armL);
-    ctx.moveTo(0, shY); ctx.lineTo(Math.sin(aR) * armL, shY + Math.cos(aR) * armL);
+    // both arms reach the grip — everyone is holding a bat two-handed
+    ctx.moveTo(-1.7 * s, shY); ctx.lineTo(hx, hy);
+    ctx.moveTo(1.7 * s, shY); ctx.lineTo(hx + bux * 2.4 * s, hy + buy * 2.4 * s);
     ctx.stroke();
 
     // head
@@ -859,6 +1024,25 @@
       ctx.moveTo(headR * 0.65, headY - headR * 0.55); ctx.lineTo(headR * 0.15, headY - headR * 0.32);
       ctx.stroke();
     }
+
+    // ----- the bat itself (drawn last so a swing reads over the body) -----
+    ctx.shadowBlur = 0; ctx.lineCap = 'round';
+    ctx.strokeStyle = '#7a4a22'; ctx.lineWidth = Math.max(2, 2.8 * s);
+    ctx.beginPath();
+    ctx.moveTo(hx - bux * 3 * s, hy - buy * 3 * s);
+    ctx.lineTo(hx + bux * batL * 0.5, hy + buy * batL * 0.5);
+    ctx.stroke();
+    ctx.strokeStyle = '#d7a267'; ctx.lineWidth = Math.max(3, 5 * s);
+    ctx.beginPath();
+    ctx.moveTo(hx + bux * batL * 0.42, hy + buy * batL * 0.42);
+    ctx.lineTo(hx + bux * batL, hy + buy * batL);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = Math.max(1, 1.4 * s);
+    ctx.beginPath();
+    ctx.moveTo(hx + bux * batL * 0.55, hy + buy * batL * 0.55);
+    ctx.lineTo(hx + bux * batL * 0.92, hy + buy * batL * 0.92);
+    ctx.stroke();
+
     ctx.restore();
 
     // number tag
@@ -1253,6 +1437,8 @@
       const a = rand(0, Math.PI * 2), f = rand(5, 11) * arena.scale;
       p.vx += Math.cos(a) * f; p.vy += Math.sin(a) * f;
       p.vz = Math.max(p.vz, rand(150, 320));
+      p.knockT = Math.max(p.knockT, 0.3);          // let the shake actually launch people
+      p.swingCd = rand(0, 0.2);                    // …into a flurry of swings
     }
     addTrauma(0.9); beep(90, 0.18, 'sawtooth', 0.16);
     // burst on the arena itself (world coords — camera-safe)
