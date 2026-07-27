@@ -171,7 +171,7 @@
   }
   .crown { font-size: clamp(50px,14vw,120px); filter: drop-shadow(0 6px 20px rgba(255,210,63,.6)); animation: bob 1.6s ease-in-out infinite; }
   @keyframes bob { 0%,100%{ transform: translateY(0) rotate(-4deg);} 50%{ transform: translateY(-12px) rotate(4deg);} }
-  .rankList { list-style: none; margin: 22px 0 28px; width: min(380px, 88vw); max-height: 42vh; overflow-y: auto; }
+  .rankList { list-style: none; margin: 22px 0 24px; width: min(380px, 88vw); max-height: 38vh; overflow-y: auto; }
   .rankItem {
     display: flex; align-items: center; gap: 12px;
     background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
@@ -183,6 +183,30 @@
   .rankItem.silver { background: rgba(200,210,230,.14); border-color: rgba(200,210,230,.4); }
   .rankItem.bronze { background: rgba(205,127,50,.16); border-color: rgba(205,127,50,.45); }
   .rankName { flex: 1; text-align: left; }
+
+  /* Share-the-result card */
+  .shareBtn {
+    margin-top: 14px; cursor: pointer; font-family: inherit;
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,210,63,.45); border-radius: 18px;
+    color: #ffd23f; font-weight: 900; font-size: 17px; padding: 14px 30px;
+    display: flex; align-items: center; gap: 8px;
+    transition: transform .08s, background .15s;
+  }
+  .shareBtn:hover { background: rgba(255,210,63,.14); }
+  .shareBtn:active { transform: scale(.94); }
+  .shareBtn:disabled { opacity: .45; cursor: not-allowed; }
+  #toast {
+    position: fixed; left: 50%; bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%) translateY(10px);
+    z-index: 40; pointer-events: none; max-width: 86vw; text-align: center;
+    background: rgba(20,20,40,.92); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.14); border-radius: 14px;
+    padding: 11px 20px; font-size: 14px; font-weight: 800; line-height: 1.4;
+    opacity: 0; transition: opacity .2s, transform .2s;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
   #countdown {
     position: fixed; inset: 0; z-index: 20; display: none;
     align-items: center; justify-content: center; pointer-events: none;
@@ -257,7 +281,10 @@
   <div id="winName">-</div>
   <ul class="rankList" id="rankList"></ul>
   <button class="playBtn win" id="againBtn">🔄 다시하기</button>
+  <button class="shareBtn" id="shareBtn" type="button">📸 결과 카드 공유</button>
 </div>
+
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script>
 (() => {
@@ -1382,7 +1409,195 @@
       list.appendChild(li);
     });
     ws.classList.remove('hidden');
+    buildShareCard(ranked);
   }
+
+  // ---------- Shareable result card ----------
+  const SHARE_URL = 'https://kimdoogi.github.io/ranking-game/';
+  const CARD_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
+  const shareBtn = document.getElementById('shareBtn');
+  const toastEl = document.getElementById('toast');
+  let shareFile = null, sharePending = null, shareCaption = '', shareBusy = false, toastT = 0;
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastT);
+    toastT = setTimeout(() => toastEl.classList.remove('show'), 2400);
+  }
+
+  function roundRectPath(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+  // shrink until it fits — names cap at 8 chars but CJK/emoji widths vary a lot
+  function fitFont(c, text, maxW, maxSize, weight) {
+    let s = maxSize;
+    c.font = `${weight} ${s}px ${CARD_FONT}`;
+    while (s > 22 && c.measureText(text).width > maxW) {
+      s -= 4;
+      c.font = `${weight} ${s}px ${CARD_FONT}`;
+    }
+    return s;
+  }
+
+  function drawResultCard(ranked) {
+    const W = 1080, H = 1350, cx = W / 2;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const c = cv.getContext('2d');
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+
+    const bg = c.createRadialGradient(cx, -160, 60, cx, 420, 1250);
+    bg.addColorStop(0, '#2a1c66');
+    bg.addColorStop(.55, '#130f30');
+    bg.addColorStop(1, '#0a0a16');
+    c.fillStyle = bg;
+    c.fillRect(0, 0, W, H);
+
+    // header
+    c.fillStyle = '#9aa0c0';
+    c.font = `800 44px ${CARD_FONT}`;
+    c.fillText('🏆 밀어내기 배틀 로얄', cx, 96);
+    c.fillStyle = '#6f74a0';
+    c.font = `700 36px ${CARD_FONT}`;
+    c.fillText(`${playerCount}명 참가`, cx, 158);
+
+    // 2nd / 3rd — only when they aren't also the last place
+    const mids = ranked.slice(1, 3).filter((_, i) => 1 + i < ranked.length - 1);
+
+    // winner panel
+    const wTop = 224, wH = mids.length ? 580 : 470;
+    c.fillStyle = 'rgba(255,210,63,.09)';
+    roundRectPath(c, 84, wTop, W - 168, wH, 48);
+    c.fill();
+    c.strokeStyle = 'rgba(255,210,63,.4)';
+    c.lineWidth = 3;
+    c.stroke();
+
+    c.font = `400 150px ${CARD_FONT}`;
+    c.fillText('👑', cx, wTop + 130);
+    c.fillStyle = '#ffd23f';
+    c.font = `900 40px ${CARD_FONT}`;
+    c.fillText('W I N N E R', cx, wTop + 240);
+
+    const wName = ranked[0] ? dispName(ranked[0]) : '-';
+    const wSize = fitFont(c, wName, W - 280, 122, 900);
+    const wGrad = c.createLinearGradient(cx - 300, 0, cx + 300, 0);
+    wGrad.addColorStop(0, '#ffe98a');
+    wGrad.addColorStop(.5, '#ffd23f');
+    wGrad.addColorStop(1, '#ff9d3d');
+    c.fillStyle = wGrad;
+    c.font = `900 ${wSize}px ${CARD_FONT}`;
+    c.fillText(wName, cx, wTop + 350);
+
+    if (mids.length) {
+      const medal = ['🥈', '🥉'];
+      const midText = mids.map((p, i) => `${medal[i]} ${dispName(p)}`).join('    ');
+      c.fillStyle = '#c3c6e4';
+      c.font = `800 ${fitFont(c, midText, W - 260, 40, 800)}px ${CARD_FONT}`;
+      c.fillText(midText, cx, wTop + 484);
+    }
+
+    // last place — centred in whatever room is left between the panel and the footer
+    const loser = ranked.length > 1 ? ranked[ranked.length - 1] : null;
+    const lH = 214, footerTop = H - 176;
+    const lTop = Math.round((wTop + wH + footerTop - lH) / 2);
+    if (loser) {
+      c.fillStyle = 'rgba(255,77,109,.12)';
+      roundRectPath(c, 84, lTop, W - 168, lH, 40);
+      c.fill();
+      c.strokeStyle = 'rgba(255,77,109,.38)';
+      c.lineWidth = 3;
+      c.stroke();
+      c.fillStyle = '#ff8fa3';
+      c.font = `900 36px ${CARD_FONT}`;
+      c.fillText('💀 꼴 찌', cx, lTop + 62);
+      const lName = dispName(loser);
+      const lSize = fitFont(c, lName, W - 300, 76, 900);
+      c.fillStyle = '#ff4d6d';
+      c.font = `900 ${lSize}px ${CARD_FONT}`;
+      c.fillText(lName, cx, lTop + 142);
+    }
+
+    // footer
+    c.fillStyle = '#7b8bff';
+    c.font = `800 34px ${CARD_FONT}`;
+    c.fillText('설치 없이 바로 플레이 ▶', cx, H - 128);
+    c.fillStyle = '#9aa0c0';
+    c.font = `800 38px ${CARD_FONT}`;
+    c.fillText('kimdoogi.github.io/ranking-game', cx, H - 68);
+
+    return cv;
+  }
+
+  // Built as soon as the win screen appears: navigator.share() must run inside the
+  // click's user activation, and awaiting toBlob() there loses it on iOS Safari.
+  function buildShareCard(ranked) {
+    shareFile = null;
+    const win = ranked[0] ? dispName(ranked[0]) : '-';
+    const loser = ranked.length > 1 ? dispName(ranked[ranked.length - 1]) : null;
+    shareCaption = `👑 우승 ${win}` + (loser ? ` · 💀 꼴찌 ${loser}` : '') + `\n밀어내기 배틀 로얄 ${SHARE_URL}`;
+    sharePending = new Promise(resolve => {
+      try {
+        drawResultCard(ranked).toBlob(b => {
+          if (b) {
+            try { shareFile = new File([b], 'push-royale-result.png', { type: 'image/png' }); }
+            catch (e) { shareFile = b; }   // no File ctor → blob still works for copy/download
+          }
+          resolve(shareFile);
+        }, 'image/png');
+      } catch (e) { resolve(null); }
+    });
+  }
+
+  shareBtn.onclick = async () => {
+    if (shareBusy) return;
+    shareBusy = true;
+    shareBtn.disabled = true;
+    try {
+      // Normally already encoded, so nothing is awaited before share() and the click's
+      // user activation survives. If the tap beat the encoder, wait for it and still try —
+      // a lost activation just throws, and the clipboard/download paths below pick it up.
+      if (!shareFile) toast('결과 카드를 만드는 중이에요…');
+      const file = shareFile || await sharePending;
+      if (!file) { toast('결과 카드를 만들지 못했어요 😢'); return; }
+
+      if (navigator.share && navigator.canShare && file.name && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], text: shareCaption });
+          return;
+        } catch (e) {
+          if (e && e.name === 'AbortError') return;   // user closed the sheet — not an error
+        }
+      }
+      if (navigator.clipboard && window.ClipboardItem) {
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': file })]);
+          toast('결과 카드를 복사했어요! 채팅방에 붙여넣기 하세요 📋');
+          return;
+        } catch (e) {}
+      }
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'push-royale-result.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      toast('결과 카드를 저장했어요 💾');
+    } catch (e) {
+      toast('공유에 실패했어요 😢');
+    } finally {
+      shareBusy = false;
+      shareBtn.disabled = false;
+    }
+  };
 
   // ---------- UI wiring ----------
   // ---------- Roster: "이름 * 4" 입력 → 추가하기 버튼으로 그만큼 추가 ----------
