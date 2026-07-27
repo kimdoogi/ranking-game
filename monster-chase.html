@@ -103,7 +103,7 @@
     position: fixed; inset: 0; z-index: 10;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     background: radial-gradient(ellipse at center, rgba(20,16,40,.72), rgba(5,5,14,.92));
-    backdrop-filter: blur(3px); text-align: center; padding: 24px;
+    backdrop-filter: blur(3px); text-align: center; padding: 24px 24px 72px;
   }
   .overlay.hidden { display: none; }
 
@@ -210,10 +210,34 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
   }
+
+  /* ===== Utility bar (sits above overlays so it also works in the lobby) ===== */
+  #utilBar {
+    position: fixed; left: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    z-index: 30; display: flex; gap: 8px;
+  }
+  #utilBar a, #utilBar button {
+    -webkit-appearance: none; appearance: none;
+    display: flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; padding: 0;
+    background: rgba(20,20,40,.55); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 12px;
+    color: #fff; font-size: 17px; line-height: 1; font-family: inherit;
+    text-decoration: none; cursor: pointer;
+    transition: transform .08s, background .15s;
+  }
+  #utilBar a:hover, #utilBar button:hover { background: rgba(44,44,78,.7); }
+  #utilBar a:active, #utilBar button:active { transform: scale(.92); }
+  #utilBar button[aria-pressed="true"] { opacity: .5; }
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
+
+<div id="utilBar">
+  <a href="index.html" title="게임 목록" aria-label="게임 목록으로 돌아가기">🏠</a>
+  <button id="muteBtn" type="button" aria-pressed="false" aria-label="소리 끄기" title="소리 끄기">🔊</button>
+</div>
 
 <div id="hud">
   <div class="pill">🏃 남은 인원 <span class="big" id="aliveCount">0</span></div>
@@ -257,6 +281,8 @@
 (() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+  let muted = false;
+  try { muted = localStorage.getItem('minigame_muted') === '1'; } catch (e) {}
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let W = 0, H = 0, DPR = 1;
 
@@ -311,7 +337,7 @@
     if (AC) return;
     try {
       AC = new (window.AudioContext || window.webkitAudioContext)();
-      master = AC.createGain(); master.gain.value = 0.8;
+      master = AC.createGain(); master.gain.value = muted ? 0 : 0.8;
       master.connect(AC.destination);
     } catch (e) {}
   }
@@ -337,6 +363,23 @@
   function fanfare() {
     [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.22, 'triangle', 0.16), i * 120));
   }
+
+  // ---------- Mute (one setting shared by every game in the arcade) ----------
+  const muteBtn = document.getElementById('muteBtn');
+  function applyMute() {
+    muteBtn.textContent = muted ? '🔇' : '🔊';
+    muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    const label = muted ? '소리 켜기' : '소리 끄기';
+    muteBtn.setAttribute('aria-label', label);
+    muteBtn.title = label;
+    if (master) master.gain.value = muted ? 0 : 0.8;
+  }
+  muteBtn.onclick = () => {
+    muted = !muted;
+    try { localStorage.setItem('minigame_muted', muted ? '1' : '0'); } catch (e) {}
+    applyMute();
+  };
+  applyMute();
 
   // ---------- State ----------
   let state = 'menu';
