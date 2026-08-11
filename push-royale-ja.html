@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>プッシュバトルロイヤル 🏆 あみだくじ・ルーレット代わりの名前抽選 | 無料ブラウザゲーム</title>
+
+<!-- SEO -->
+<meta name="description" content="名前を入れて回すと、優勝者とビリが決まるランダム抽選ミニゲーム。あみだくじやルーレットの代わりに、罰ゲーム・順番・おごりを決めるのに使えます。インストール不要、ブラウザで無料プレイ。" />
+<meta name="keywords" content="あみだくじ, ルーレット, 名前 抽選, ランダム 抽選, くじ引き, 罰ゲーム 決め, 順番 決め, プッシュバトルロイヤル, バトルロイヤル, ミニゲーム, 無料ゲーム, ブラウザゲーム, カジュアルゲーム" />
+<meta name="author" content="kimdoogi" />
+<meta name="robots" content="index, follow" />
+<meta name="theme-color" content="#0a0a16" />
+<link rel="canonical" href="https://kimdoogi.github.io/ranking-game/push-royale-ja.html" />
+<link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/push-royale.html" />
+<link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/push-royale-en.html" />
+<link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/push-royale-zh.html" />
+<link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/push-royale-ja.html" />
+<link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/push-royale.html" />
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🏆</text></svg>' />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="ミニゲームアーケード" />
+<meta property="og:locale" content="ja_JP" />
+<meta property="og:locale:alternate" content="ko_KR" />
+<meta property="og:locale:alternate" content="en_US" />
+<meta property="og:locale:alternate" content="zh_CN" />
+<meta property="og:title" content="プッシュバトルロイヤル 🏆 名前抽選" />
+<meta property="og:description" content="名前を入れてバットで吹き飛ばせ！最後の1人が優勝。あみだくじ・ルーレット代わりに無料でプレイ。" />
+<meta property="og:url" content="https://kimdoogi.github.io/ranking-game/push-royale-ja.html" />
+<meta property="og:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="プッシュバトルロイヤル 🏆 名前抽選" />
+<meta name="twitter:description" content="名前を入れてバットで吹き飛ばせ！最後の1人が優勝。あみだくじ・ルーレット代わりに無料でプレイ。" />
+<meta name="twitter:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+
+<!-- Structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "プッシュバトルロイヤル",
+  "alternateName": "あみだくじ・ルーレット代わりの名前抽選",
+  "url": "https://kimdoogi.github.io/ranking-game/push-royale-ja.html",
+  "image": "https://kimdoogi.github.io/ranking-game/assets/og-image.png",
+  "description": "名前を入れて回すと優勝者とビリが決まるランダム抽選ミニゲーム。あみだくじやルーレットの代わりに罰ゲーム・順番・おごりを決めるのに使います。",
+  "keywords": "あみだくじ, ルーレット, 名前 抽選, ランダム 抽選, くじ引き, 罰ゲーム 決め, 順番 決め",
+  "inLanguage": "ja",
+  "genre": "Casual",
+  "gamePlatform": "Web browser",
+  "applicationCategory": "Game",
+  "operatingSystem": "Any (web browser)",
+  "author": { "@type": "Person", "name": "kimdoogi" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
+<link rel="stylesheet" href="push-royale.css" />
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="utilBar">
+  <a href="index-ja.html" title="ゲーム一覧" aria-label="ゲーム一覧に戻る">🏠</a>
+  <button id="muteBtn" type="button" aria-pressed="false" aria-label="ミュート" title="ミュート">🔊</button>
+</div>
+
+<div id="hud">
+  <div class="pill">🎯 残り <span class="big" id="aliveCount">0</span></div>
+  <button id="shakeBtn">💥 シェイク！</button>
+</div>
+
+<div id="countdown"></div>
+
+<div class="overlay" id="startScreen">
+  <div class="title">プッシュ<br>バトルロイヤル</div>
+  <div class="subtitle">バットで全員吹き飛ばせ！最後の1人が優勝 🏆
+    <span class="tagline">あみだくじ・ルーレット代わりの名前抽選 — 罰ゲーム・順番・おごり決め</span>
+  </div>
+  <div class="control">
+    <label>参加者を追加 <span class="hint"><b>名前 * 4</b> の形で入力して追加 · 重複OK</span></label>
+    <div class="addRow">
+      <input id="nameInput" type="text" placeholder="例：たろう * 4" autocomplete="off" />
+      <button id="addBtn" class="addBtn">追加</button>
+    </div>
+    <div class="rosterWrap">
+      <div class="rosterList" id="rosterList"></div>
+      <div class="rosterFoot">
+        <span class="lobbyCount"><span id="countVal">0</span>人</span>
+        <button id="clearBtn" class="clearBtn">すべて消す</button>
+      </div>
+    </div>
+    <div class="lobbyHint" id="lobbyHint"></div>
+  </div>
+  <button class="playBtn" id="startBtn">▶ スタート！</button>
+</div>
+
+<div class="overlay hidden" id="winScreen">
+  <div class="crown">👑</div>
+  <div style="font-weight:800;color:#b8b8d8;letter-spacing:2px;">WINNER</div>
+  <div id="winName">-</div>
+  <ul class="rankList" id="rankList"></ul>
+  <button class="playBtn win" id="againBtn">🔄 もう一回</button>
+  <button class="shareBtn" id="shareBtn" type="button">📸 結果カードを共有</button>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+window.T = {
+  shareUrl: 'https://kimdoogi.github.io/ranking-game/push-royale-ja.html',
+  gameName: 'プッシュバトルロイヤル',
+  mute: 'ミュート',
+  unmute: 'ミュート解除',
+  clang: 'カキーン！',
+  homer: 'ホームラン！',
+  out: 'OUT!',
+  doubleOut: 'ダブルアウト！！',
+  monsterOut: 'モンスターアウト！！！',
+  suddenDeath: '⚡ サドンデス！',
+  finalRound: '決勝！',
+  save: 'セーフ！',
+  cardTitle: '🏆 プッシュバトルロイヤル',
+  cardPlayers: n => `${n}人参加`,
+  cardLast: '💀 ビリ',
+  cardCta: 'インストール不要ですぐプレイ ▶',
+  shareCaption: (win, loser) => `👑 優勝 ${win}` + (loser ? ` · 💀 ビリ ${loser}` : ''),
+  cardBuilding: '結果カードを作成中…',
+  cardFailed: '結果カードを作成できませんでした 😢',
+  cardCopied: '結果カードをコピーしました！チャットに貼り付けてください 📋',
+  cardSaved: '結果カードを保存しました 💾',
+  shareFailed: '共有に失敗しました 😢',
+  rosterEmpty: 'まだ参加者がいません',
+  hintEmpty: '名前を入力して追加を押してください',
+  hintReady: n => `${n}人参加 — スタートできます！`,
+  hintNeedMore: n => `${n}人以上からスタートできます`,
+  numName: n => n + '番'
+};
+</script>
+<script src="push-royale.js"></script>
+</body>
+</html>

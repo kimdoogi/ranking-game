@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>大胃怪物大逃亡 👾 随机生存点名 — 替代阶梯抽签和轮盘 | 免费网页小游戏</title>
+
+<!-- SEO -->
+<meta name="description" content="输入名字，没被怪物吃掉、活到最后的人获胜的随机小游戏。可以代替阶梯抽签或幸运轮盘来定惩罚、定顺序。免安装，免费玩。" />
+<meta name="keywords" content="大胃怪物大逃亡, 随机点名, 抽签工具, 阶梯抽签, 轮盘, 惩罚决定, 小游戏, 免费游戏, 网页游戏, 跑酷游戏, 休闲游戏" />
+<meta name="author" content="kimdoogi" />
+<meta name="robots" content="index, follow" />
+<meta name="theme-color" content="#0a0a16" />
+<link rel="canonical" href="https://kimdoogi.github.io/ranking-game/monster-chase-zh.html" />
+<link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/monster-chase.html" />
+<link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/monster-chase-en.html" />
+<link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/monster-chase-zh.html" />
+<link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/monster-chase-ja.html" />
+<link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/monster-chase.html" />
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">👾</text></svg>' />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="小游戏街机厅" />
+<meta property="og:locale" content="zh_CN" />
+<meta property="og:locale:alternate" content="ko_KR" />
+<meta property="og:locale:alternate" content="en_US" />
+<meta property="og:locale:alternate" content="ja_JP" />
+<meta property="og:title" content="大胃怪物大逃亡 👾" />
+<meta property="og:description" content="躲开怪物活到最后！马上免费开玩。" />
+<meta property="og:url" content="https://kimdoogi.github.io/ranking-game/monster-chase-zh.html" />
+<meta property="og:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="大胃怪物大逃亡 👾" />
+<meta name="twitter:description" content="躲开怪物活到最后！马上免费开玩。" />
+<meta name="twitter:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+
+<!-- Structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "大胃怪物大逃亡",
+  "alternateName": "随机生存点名小游戏",
+  "url": "https://kimdoogi.github.io/ranking-game/monster-chase-zh.html",
+  "image": "https://kimdoogi.github.io/ranking-game/assets/og-image.png",
+  "description": "输入名字，活到最后的人获胜的休闲跑酷小游戏。",
+  "keywords": "随机点名, 抽签工具, 阶梯抽签, 轮盘, 惩罚决定",
+  "inLanguage": "zh-Hans",
+  "genre": "Casual",
+  "gamePlatform": "Web browser",
+  "applicationCategory": "Game",
+  "operatingSystem": "Any (web browser)",
+  "author": { "@type": "Person", "name": "kimdoogi" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
+<link rel="stylesheet" href="monster-chase.css" />
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="utilBar">
+  <a href="index-zh.html" title="游戏列表" aria-label="返回游戏列表">🏠</a>
+  <button id="muteBtn" type="button" aria-pressed="false" aria-label="静音" title="静音">🔊</button>
+</div>
+
+<div id="hud">
+  <div class="pill">🏃 剩余 <span class="big" id="aliveCount">0</span></div>
+  <button id="boomBtn" type="button" aria-keyshortcuts="Space" aria-describedby="snackHelp">🍔 投喂夜宵 ×3</button>
+</div>
+<div id="snackCombo" role="status" aria-live="polite" hidden></div>
+<span id="snackHelp" class="srOnly">比赛中点击按钮或按空格键，就会向怪物投喂夜宵。每局可以使用 3 次。</span>
+
+<div id="countdown"></div>
+
+<div class="overlay" id="startScreen">
+  <div class="title">大胃怪物<br>大逃亡</div>
+  <div class="subtitle">别被吃掉！最后的幸存者获胜 🏆
+    <span class="tagline">代替阶梯抽签和轮盘的随机点名工具 — 定惩罚、定顺序</span>
+  </div>
+  <div class="control">
+    <label>添加参与者 <span class="hint">按 <b>名字 * 4</b> 输入后点添加 · 可重复</span></label>
+    <div class="addRow">
+      <input id="nameInput" type="text" placeholder="例：小明 * 4" autocomplete="off" />
+      <button id="addBtn" class="addBtn">添加</button>
+    </div>
+    <div class="rosterWrap">
+      <div class="rosterList" id="rosterList"></div>
+      <div class="rosterFoot">
+        <span class="lobbyCount"><span id="countVal">0</span> 人</span>
+        <button id="clearBtn" class="clearBtn">全部清空</button>
+      </div>
+    </div>
+    <div class="lobbyHint" id="lobbyHint"></div>
+  </div>
+  <button class="playBtn" id="startBtn">▶ 开始！</button>
+</div>
+
+<div class="overlay hidden" id="winScreen">
+  <div class="crown">👑</div>
+  <div style="font-weight:800;color:#b8b8d8;letter-spacing:2px;">WINNER</div>
+  <div id="winName">-</div>
+  <ul class="rankList" id="rankList"></ul>
+  <button class="playBtn win" id="againBtn">🔄 再来一局</button>
+</div>
+
+<script>
+window.T = {
+  mute: '静音',
+  unmute: '取消静音',
+  snack1: '凌晨两点的汉堡', snack1r: '减肥明天再说！',
+  snack2: '薄荷巧克力披萨', snack2r: '这搭配……认真的？',
+  snack3: '十倍辣火鸡面', snack3r: '辣辣辣！！！',
+  snack4: '传说中的鸡腿', snack4r: '连骨头都吃掉！',
+  snack5: '彩虹甜甜圈', snack5r: '糖分补满！',
+  snackCombo: n => `🔥 夜宵连击 ×${n}`,
+  snackGone: '夜宵秒光！',
+  nom: '啊呜！',
+  firstNom: '第一口！',
+  darkNom: '黑暗中的一口！',
+  suddenDeath: '⚡ 突然死亡！！',
+  pillarFall: '柱子塌了！',
+  finalTwo: '最后两人！',
+  deliveryFail: '投喂失败！',
+  closeCall: '好险！',
+  survived: '活下来了！',
+  doubleNom: '双吃！！',
+  tripleNom: '三连吃！！！',
+  bonk: '咚～',
+  oops: '哎哟！',
+  monsterWoke: '怪物醒了！',
+  throwSnack: n => `🍔 投喂夜宵 ×${n}`,
+  delivering: '配送中…',
+  snackSoldOut: '🍽️ 夜宵售罄',
+  seconds: n => `${n}秒`,
+  snackCooldown: n => `距离下次投喂还有 ${n} 秒`,
+  delivered: '送到！',
+  rosterEmpty: '还没有参与者',
+  hintEmpty: '输入名字后点添加',
+  hintReady: n => `${n} 人参加 — 可以开始了！`,
+  hintNeedMore: n => `至少要 ${n} 人才能开始`,
+  numName: n => n + ' 号'
+};
+</script>
+<script src="monster-chase.js"></script>
+</body>
+</html>

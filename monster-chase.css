@@ -1,0 +1,178 @@
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: #0a0a16;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: #fff;
+    user-select: none;
+  }
+  #game { position: fixed; inset: 0; display: block; }
+
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 16px 20px; pointer-events: none; z-index: 5;
+  }
+  .pill {
+    background: rgba(20,20,40,.55); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 14px; padding: 8px 16px;
+    font-weight: 800; font-size: 15px; letter-spacing: .3px;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .pill .big { font-size: 22px; color: #ffd23f; text-shadow: 0 0 12px rgba(255,210,63,.6); }
+  #boomBtn {
+    pointer-events: auto; cursor: pointer;
+    background: linear-gradient(135deg,#ff4d6d,#ff8a3d);
+    border: none; border-radius: 14px; color: #fff;
+    font-weight: 900; font-size: 15px; padding: 10px 18px;
+    box-shadow: 0 6px 20px rgba(255,77,109,.45);
+    transition: transform .08s;
+  }
+  #boomBtn:active { transform: scale(.92); }
+  #boomBtn:disabled { cursor: not-allowed; opacity: .48; box-shadow: none; }
+  #boomBtn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  #snackCombo {
+    position: fixed; top: 64px; right: 20px; z-index: 5;
+    border: 1px solid rgba(255,210,63,.55); border-radius: 10px;
+    background: rgba(35,18,18,.78); color: #ffd23f;
+    padding: 6px 10px; font-size: 13px; font-weight: 900;
+    pointer-events: none;
+  }
+  #snackCombo[hidden] { display: none; }
+  .srOnly {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+
+  .overlay {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(20,16,40,.72), rgba(5,5,14,.92));
+    backdrop-filter: blur(3px); text-align: center; padding: 24px 24px 72px;
+  }
+  .overlay.hidden { display: none; }
+
+  .title {
+    font-size: clamp(38px, 9vw, 82px); font-weight: 900; line-height: 1.02;
+    background: linear-gradient(135deg,#ff2d95,#ff8a3d 45%,#ffd23f);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 4px 24px rgba(255,45,149,.4));
+    margin-bottom: 6px;
+  }
+  .subtitle { color: #b8b8d8; font-size: clamp(14px,3.5vw,18px); margin-bottom: 30px; font-weight: 600; }
+
+  .control { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 22px; }
+  .control label { font-weight: 800; font-size: 16px; color: #cfcff0; }
+  .control label .hint { display:block; margin-top:3px; opacity:.6; font-size:12px; font-weight:600; }
+  .control label b { color:#ffd23f; }
+  .addRow { display:flex; gap:8px; width:min(340px,84vw); }
+  #nameInput {
+    flex:1; min-width:0; height:44px;
+    background: rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14);
+    border-radius:12px; color:#fff; font-weight:700; font-size:15px;
+    padding:0 14px; font-family:inherit; outline:none;
+  }
+  #nameInput::placeholder { color: rgba(200,200,230,.45); }
+  #nameInput:focus { border-color: rgba(255,210,63,.5); }
+  .addBtn {
+    flex-shrink:0; cursor:pointer; border:none; border-radius:12px;
+    background: linear-gradient(135deg,#ff8a3d,#ff4d6d); color:#fff;
+    font-weight:900; font-size:15px; padding:0 18px; height:44px; transition: transform .08s;
+  }
+  .addBtn:active { transform: scale(.94); }
+  .rosterWrap { width:min(340px,84vw); }
+  .rosterList {
+    display:flex; flex-wrap:wrap; gap:7px; justify-content:center; align-items:center;
+    min-height:46px; max-height:120px; overflow-y:auto;
+    padding:10px; border-radius:12px;
+    background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
+  }
+  .rosterEmpty { color: rgba(200,200,230,.4); font-weight:700; font-size:13px; }
+  .chip {
+    display:inline-flex; align-items:center; gap:6px;
+    background: rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.16);
+    border-radius:999px; padding:5px 6px 5px 12px; font-weight:800; font-size:13px; color:#fff;
+  }
+  .chipX {
+    cursor:pointer; border:none; width:20px; height:20px; border-radius:50%;
+    background: rgba(255,255,255,.16); color:#fff; font-size:11px; line-height:1;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .chipX:hover { background:#ff4d6d; }
+  .rosterFoot { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:8px; }
+  .lobbyCount { font-weight:900; font-size:15px; color:#ffd23f; text-shadow:0 0 10px rgba(255,210,63,.5); }
+  .clearBtn {
+    cursor:pointer; border:1px solid rgba(255,255,255,.16); border-radius:10px;
+    background: rgba(255,255,255,.06); color:#b8b8d8; font-weight:800; font-size:12.5px; padding:6px 12px;
+  }
+  .clearBtn:hover { background: rgba(255,77,109,.18); border-color: rgba(255,77,109,.5); color:#fff; }
+  .lobbyHint { font-size:12.5px; font-weight:700; color:#9fa0c8; min-height:16px; }
+  .playBtn:disabled { opacity:.4; cursor:not-allowed; box-shadow:none; }
+
+  .playBtn {
+    cursor: pointer; border: none; border-radius: 20px;
+    background: linear-gradient(135deg,#25d366,#0fb85a);
+    color: #fff; font-weight: 900; font-size: 24px; padding: 18px 54px;
+    box-shadow: 0 10px 34px rgba(37,211,102,.5);
+    transition: transform .1s;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .playBtn:active { transform: scale(.94); }
+  .playBtn.win { background: linear-gradient(135deg,#ffd23f,#ff8a3d); box-shadow: 0 10px 34px rgba(255,138,61,.5); }
+
+  #winName {
+    font-size: clamp(30px,7vw,60px); font-weight: 900; margin: 4px 0 2px;
+    background: linear-gradient(135deg,#ffe98a,#ffd23f,#ff9d3d);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .crown { font-size: clamp(50px,14vw,120px); filter: drop-shadow(0 6px 20px rgba(255,210,63,.6)); animation: bob 1.6s ease-in-out infinite; }
+  @keyframes bob { 0%,100%{ transform: translateY(0) rotate(-4deg);} 50%{ transform: translateY(-12px) rotate(4deg);} }
+  .rankList { list-style: none; margin: 22px 0 28px; width: min(380px, 88vw); max-height: 42vh; overflow-y: auto; }
+  .rankItem {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px; padding: 9px 14px; margin-bottom: 8px; font-weight: 800; font-size: 16px;
+  }
+  .rankNo { width: 34px; font-size: 18px; font-weight: 900; text-align: center; }
+  .dot { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; }
+  .rankItem.gold   { background: rgba(255,210,63,.16); border-color: rgba(255,210,63,.5); }
+  .rankItem.silver { background: rgba(200,210,230,.14); border-color: rgba(200,210,230,.4); }
+  .rankItem.bronze { background: rgba(205,127,50,.16); border-color: rgba(205,127,50,.45); }
+  .rankName { flex: 1; text-align: left; }
+  #countdown {
+    position: fixed; inset: 0; z-index: 20; display: none;
+    align-items: center; justify-content: center; pointer-events: none;
+    font-size: clamp(90px,30vw,260px); font-weight: 900; color: #fff;
+    text-shadow: 0 0 60px rgba(255,210,63,.8);
+  }
+  @media (max-width: 560px) {
+    #hud { padding: 10px 12px; gap: 8px; }
+    .pill { padding: 7px 10px; font-size: 12px; }
+    .pill .big { font-size: 18px; }
+    #boomBtn { padding: 9px 11px; font-size: 13px; }
+    #snackCombo { top: 56px; right: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
+  }
+
+  /* ===== Utility bar (sits above overlays so it also works in the lobby) ===== */
+  #utilBar {
+    position: fixed; left: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    z-index: 30; display: flex; gap: 8px;
+  }
+  #utilBar a, #utilBar button {
+    -webkit-appearance: none; appearance: none;
+    display: flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; padding: 0;
+    background: rgba(20,20,40,.55); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 12px;
+    color: #fff; font-size: 17px; line-height: 1; font-family: inherit;
+    text-decoration: none; cursor: pointer;
+    transition: transform .08s, background .15s;
+  }
+  #utilBar a:hover, #utilBar button:hover { background: rgba(44,44,78,.7); }
+  #utilBar a:active, #utilBar button:active { transform: scale(.92); }
+  #utilBar button[aria-pressed="true"] { opacity: .5; }

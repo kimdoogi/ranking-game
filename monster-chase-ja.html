@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>大食いモンスターから大脱走 👾 名前を入れて回すランダム抽選 — あみだくじ・ルーレット代わり | 無料ブラウザゲーム</title>
+
+<!-- SEO -->
+<meta name="description" content="名前を入れると、モンスターに食べられず最後まで生き残った人が決まるランダム抽選ミニゲーム。罰ゲームや順番決めに、あみだくじやルーレットの代わりにどうぞ。インストール不要、無料。" />
+<meta name="keywords" content="大食いモンスターから大脱走, 名前 抽選, ランダム 抽選, あみだくじ, ルーレット, 罰ゲーム 決め, ミニゲーム, 無料ゲーム, ブラウザゲーム, ランゲーム, カジュアルゲーム" />
+<meta name="author" content="kimdoogi" />
+<meta name="robots" content="index, follow" />
+<meta name="theme-color" content="#0a0a16" />
+<link rel="canonical" href="https://kimdoogi.github.io/ranking-game/monster-chase-ja.html" />
+<link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/monster-chase.html" />
+<link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/monster-chase-en.html" />
+<link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/monster-chase-zh.html" />
+<link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/monster-chase-ja.html" />
+<link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/monster-chase.html" />
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">👾</text></svg>' />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="ミニゲームアーケード" />
+<meta property="og:locale" content="ja_JP" />
+<meta property="og:locale:alternate" content="ko_KR" />
+<meta property="og:locale:alternate" content="en_US" />
+<meta property="og:locale:alternate" content="zh_CN" />
+<meta property="og:title" content="大食いモンスターから大脱走 👾" />
+<meta property="og:description" content="モンスターから逃げ切って生き残れ！今すぐ無料でプレイ。" />
+<meta property="og:url" content="https://kimdoogi.github.io/ranking-game/monster-chase-ja.html" />
+<meta property="og:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="大食いモンスターから大脱走 👾" />
+<meta name="twitter:description" content="モンスターから逃げ切って生き残れ！今すぐ無料でプレイ。" />
+<meta name="twitter:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+
+<!-- Structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "大食いモンスターから大脱走",
+  "alternateName": "ランダム生き残り抽選ミニゲーム",
+  "url": "https://kimdoogi.github.io/ranking-game/monster-chase-ja.html",
+  "image": "https://kimdoogi.github.io/ranking-game/assets/og-image.png",
+  "description": "名前を入れて回すと最後の生存者が決まるカジュアルランゲーム。",
+  "keywords": "名前 抽選, ランダム 抽選, あみだくじ, ルーレット, 罰ゲーム 決め",
+  "inLanguage": "ja",
+  "genre": "Casual",
+  "gamePlatform": "Web browser",
+  "applicationCategory": "Game",
+  "operatingSystem": "Any (web browser)",
+  "author": { "@type": "Person", "name": "kimdoogi" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
+<link rel="stylesheet" href="monster-chase.css" />
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="utilBar">
+  <a href="index-ja.html" title="ゲーム一覧" aria-label="ゲーム一覧に戻る">🏠</a>
+  <button id="muteBtn" type="button" aria-pressed="false" aria-label="ミュート" title="ミュート">🔊</button>
+</div>
+
+<div id="hud">
+  <div class="pill">🏃 残り <span class="big" id="aliveCount">0</span></div>
+  <button id="boomBtn" type="button" aria-keyshortcuts="Space" aria-describedby="snackHelp">🍔 夜食投げ ×3</button>
+</div>
+<div id="snackCombo" role="status" aria-live="polite" hidden></div>
+<span id="snackHelp" class="srOnly">試合中にボタンかスペースキーを押すと、モンスターに夜食を投げます。1試合で3回まで使えます。</span>
+
+<div id="countdown"></div>
+
+<div class="overlay" id="startScreen">
+  <div class="title">大食いモンスター<br>から大脱走</div>
+  <div class="subtitle">食べられるな！最後の生存者が優勝 🏆
+    <span class="tagline">あみだくじ・ルーレット代わりの名前抽選 — 罰ゲームや順番決めに</span>
+  </div>
+  <div class="control">
+    <label>参加者を追加 <span class="hint"><b>名前 * 4</b> の形で入力して追加 · 重複OK</span></label>
+    <div class="addRow">
+      <input id="nameInput" type="text" placeholder="例：たろう * 4" autocomplete="off" />
+      <button id="addBtn" class="addBtn">追加</button>
+    </div>
+    <div class="rosterWrap">
+      <div class="rosterList" id="rosterList"></div>
+      <div class="rosterFoot">
+        <span class="lobbyCount"><span id="countVal">0</span>人</span>
+        <button id="clearBtn" class="clearBtn">すべて消す</button>
+      </div>
+    </div>
+    <div class="lobbyHint" id="lobbyHint"></div>
+  </div>
+  <button class="playBtn" id="startBtn">▶ スタート！</button>
+</div>
+
+<div class="overlay hidden" id="winScreen">
+  <div class="crown">👑</div>
+  <div style="font-weight:800;color:#b8b8d8;letter-spacing:2px;">WINNER</div>
+  <div id="winName">-</div>
+  <ul class="rankList" id="rankList"></ul>
+  <button class="playBtn win" id="againBtn">🔄 もう一回</button>
+</div>
+
+<script>
+window.T = {
+  mute: 'ミュート',
+  unmute: 'ミュート解除',
+  snack1: '深夜2時のハンバーガー', snack1r: 'ダイエットは明日から！',
+  snack2: 'ミントチョコピザ', snack2r: 'この組み合わせ…マジ？',
+  snack3: '激辛10倍ラーメン', snack3r: '辛い辛い辛い！！！',
+  snack4: '伝説の骨付き肉', snack4r: '骨までパクッ！',
+  snack5: 'レインボードーナツ', snack5r: '糖分チャージ完了！',
+  snackCombo: n => `🔥 夜食コンボ ×${n}`,
+  snackGone: '夜食を一瞬で完食！',
+  nom: 'パクッ！',
+  firstNom: '最初のひと口！',
+  darkNom: '暗闇のひと口！',
+  suddenDeath: '⚡ サドンデス！！',
+  pillarFall: '柱が崩れた！',
+  finalTwo: '最後の2人！',
+  deliveryFail: '配達失敗！',
+  closeCall: 'あぶない！',
+  survived: '助かった！',
+  doubleNom: 'ダブルパク！！',
+  tripleNom: 'トリプルパク！！！',
+  bonk: 'ゴツン〜',
+  oops: 'おっと！',
+  monsterWoke: 'モンスターが目を覚ました！',
+  throwSnack: n => `🍔 夜食投げ ×${n}`,
+  delivering: '配達中…',
+  snackSoldOut: '🍽️ 夜食完売',
+  seconds: n => `${n}秒`,
+  snackCooldown: n => `次の夜食投げまで ${n} 秒`,
+  delivered: '配達！',
+  rosterEmpty: 'まだ参加者がいません',
+  hintEmpty: '名前を入力して追加を押してください',
+  hintReady: n => `${n}人参加 — スタートできます！`,
+  hintNeedMore: n => `${n}人以上からスタートできます`,
+  numName: n => n + '番'
+};
+</script>
+<script src="monster-chase.js"></script>
+</body>
+</html>

@@ -1,0 +1,1428 @@
+(() => {
+  const T = window.T;
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let muted = false;
+  try { muted = localStorage.getItem('minigame_muted') === '1'; } catch (e) {}
+  let W = 0, H = 0, DPR = 1;
+
+  const TILT = 0.52;   // 2.5D: vertical squash of the play plane
+  const SD_TIME = 32;  // sudden death (s, game time) — bats end matches faster than shoving did
+  const COLLAPSE_TIME = 58; // hard cap: arena collapses to 0
+
+  // ---------- Bat ----------
+  // Everyone carries a bat; body bumps only jostle, swings do the launching.
+  const SW_WIND = 0.15;              // windup (telegraph — readable before the hit lands)
+  const SW_HIT  = 0.11;              // active arc: the only window that can connect
+  const SW_REC  = 0.20;              // follow-through
+  const SW_DUR  = SW_WIND + SW_HIT + SW_REC;
+  const BAT_LEN = 2.15;              // reach past the body, in player radii
+  const BAT_ARC = 2.5;               // radians swept during the active window
+  const BAT_CONE = 0.6;              // hit tolerance off the bat line (rad)
+  const KNOCK_T = 0.3;               // launched: no steering, no speed cap
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  // remap the whole world proportionally on viewport changes — the game may boot
+  // inside a not-yet-sized preview pane (tiny W/H) or be resized mid-match
+  function remapWorld() {
+    if (!arena || !arena.R0) return;
+    const oldCx = arena.cx, oldCy = arena.cy, oldR0 = arena.R0;
+    const cx = W / 2, cy = H * 0.54;
+    const R0n = Math.min(W * 0.42, H * 0.55);
+    if (!R0n || Math.abs(R0n - oldR0) < 1) return;
+    const k = R0n / oldR0;
+    arena.cx = cx; arena.cy = cy;
+    arena.R0 = R0n; arena.R *= k;
+    arena.scale = clamp(R0n / 340, 0.55, 1.2);
+    for (const p of players) {
+      p.x = cx + (p.x - oldCx) * k;
+      p.y = cy + (p.y - oldCy) * k;
+      p.r *= k; p.baseR *= k; p.mass = p.r * p.r;
+    }
+    cam = { x: W / 2, y: H * 0.5, zoom: cam.zoom, tx: W / 2, ty: H * 0.5, tz: cam.tz };
+  }
+  window.addEventListener('resize', () => { resize(); remapWorld(); });
+  resize();
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function lerp(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }
+
+  // ---------- Audio (all sfx through one master gain — no clipping) ----------
+  let AC = null, master = null;
+  let duckUntil = 0;   // hit sounds duck while heartbeat/banner stings play
+  function initAudio() {
+    if (AC) return;
+    try {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      master = AC.createGain(); master.gain.value = muted ? 0 : 0.8;
+      master.connect(AC.destination);
+    } catch (e) {}
+  }
+  function beep(freq, dur = 0.06, type = 'sine', vol = 0.12, freq2 = 0) {
+    if (!AC) return;
+    const t = AC.currentTime;
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (freq2) o.frequency.linearRampToValueAtTime(freq2, t + dur);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur);
+  }
+  let lastHitSnd = 0;
+  function hitSound(svn) {
+    const now = performance.now();
+    if (now - lastHitSnd < 28) return;
+    lastHitSnd = now;
+    const duck = now < duckUntil ? 0.6 : 1;
+    beep(140 + Math.min(svn, 14) * 24, 0.05, 'square', (0.05 + Math.min(svn, 10) * 0.006) * duck);
+  }
+  function fanfare() {
+    [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.22, 'triangle', 0.16), i * 120));
+  }
+
+  // ---------- Mute (one setting shared by every game in the arcade) ----------
+  const muteBtn = document.getElementById('muteBtn');
+  function applyMute() {
+    muteBtn.textContent = muted ? '🔇' : '🔊';
+    muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    const label = muted ? T.unmute : T.mute;
+    muteBtn.setAttribute('aria-label', label);
+    muteBtn.title = label;
+    if (master) master.gain.value = muted ? 0 : 0.8;
+  }
+  muteBtn.onclick = () => {
+    muted = !muted;
+    try { localStorage.setItem('minigame_muted', muted ? '1' : '0'); } catch (e) {}
+    applyMute();
+  };
+  applyMute();
+
+  // ---------- Game state ----------
+  let state = 'menu';           // menu | countdown | playing | over
+  let players = [], particles = [], confetti = [], floaters = [];
+  let eliminationOrder = [];
+  let arena = { cx: 0, cy: 0, R: 0, R0: 0 };
+  let spin = 0;
+  let cdT = 0, cdIdx = -1;
+  let playerCount = 12;
+  let winner = null;
+
+  // pacing / drama state
+  let gameT = 0;                 // GAME seconds (scaled by timeScale — throttle/slow-mo safe)
+  let elimCount = 0;
+  let suddenDeath = false;
+  let lastElimT = 0, lastCollT = 0, aggrPulseT = 0, directorOn = false;
+  let final2T = -1;              // when exactly-2 began
+  let faceOffDone = false, finalSlowmoDone = false;
+  let prevAliveNF = 99;
+
+  // juice state
+  let trauma = 0;                // screen shake: displacement = trauma² · max
+  let freezeT = 0, lastFreeze = 0;         // hit-stop
+  let impactFX = null;           // {x,y,nx,ny,t}
+  let slowmo = { ts: 1, t: 0 };  // timeScale hold
+  let timeScale = 1;
+  let flashT = 0, lastFlash = 0; // gold radial vignette
+  let banner = null, lastBannerT = 0;      // single center announcement
+  let koChainIdx = 0, koChainT = -9;
+  let fallTimes = [];            // for DOUBLE/MONSTER KO
+  let hbT = 0;                   // heartbeat timer
+  let cam = { x: 0, y: 0, zoom: 1, tx: 0, ty: 0, tz: 1 };
+
+  function groundY(y) { return arena.cy + (y - arena.cy) * TILT; }
+  const aliveEl = document.getElementById('aliveCount');
+
+  function addTrauma(a) {
+    if (reduceMotion) return;
+    if (timeScale < 0.999 || cam.zoom > 1.001) return;    // never shake while slow-mo/zoomed
+    const aliveNF = players.filter(p => p.alive && !p.falling).length;
+    trauma = Math.min(1, trauma + a * (aliveNF <= 3 ? 0.5 : 1));
+  }
+  function fireFlash() {
+    if (reduceMotion) return;
+    const now = performance.now();
+    if (now - lastFlash < 2000) return;
+    lastFlash = now; flashT = 0.08;
+  }
+  function showBanner(text, color, dur = 1.2, force = false) {
+    const now = performance.now();
+    if (!force && now - lastBannerT < 2000) return;
+    lastBannerT = now;
+    banner = { text, color, t: 0, dur };
+  }
+  function setSlowmo(ts, dur) { slowmo = { ts, t: dur }; trauma = 0; }
+
+  // ---------- Setup match ----------
+  function setupGame(n) {
+    players = []; particles = []; confetti = []; floaters = [];
+    eliminationOrder = []; winner = null; trauma = 0; spin = 0;
+    gameT = 0; elimCount = 0; suddenDeath = false;
+    lastElimT = 0; lastCollT = 0; aggrPulseT = 0; directorOn = false;
+    final2T = -1; faceOffDone = false; finalSlowmoDone = false; prevAliveNF = 99;
+    freezeT = 0; impactFX = null; slowmo = { ts: 1, t: 0 }; timeScale = 1;
+    flashT = 0; banner = null; koChainIdx = 0; koChainT = -9; fallTimes = []; hbT = 0;
+
+    const cx = W / 2, cy = H * 0.54;
+    const R = Math.min(W * 0.42, H * 0.55);
+    // motion scale: forces/speeds are proportional to arena size so phones get the
+    // same ~60s three-act match as a desktop (absolute px constants were tuned at R0≈340)
+    arena = { cx, cy, R, R0: R, scale: clamp(R / 340, 0.55, 1.2) };
+    cam = { x: W / 2, y: H * 0.5, zoom: 1, tx: W / 2, ty: H * 0.5, tz: 1 };
+
+    const r = Math.max(13, Math.min(24, R / (n * 0.42)));
+    const spawnR = R - r * 2.2;
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2 + rand(-0.15, 0.15);
+      const rad = spawnR * (0.30 + 0.45 * ((i % 3) / 2));   // outer ring ≤75% — no cheap rim-outs
+      const hue = (i * (360 / n) + rand(-8, 8)) % 360;
+      players.push({
+        id: i, name: (window.__names && window.__names[i]) || String(i + 1),
+        isNum: !(window.__names && window.__names[i]),
+        color: `hsl(${hue}, 85%, 62%)`,
+        x: cx + Math.cos(ang) * rad, y: cy + Math.sin(ang) * rad,
+        vx: rand(-1, 1), vy: rand(-1, 1),
+        z: 0, vz: 0,
+        r, baseR: r, mass: r * r,
+        alive: true, falling: false, fallT: 0,
+        rot: 0, rotV: 0,
+        phase: rand(0, 6.28), squash: 0, lookX: 0, lookY: 1,
+        // bat
+        swingT: -1, swingCd: rand(0.6, 1.7), aim: ang + Math.PI, batSide: 1, hitIds: [],
+        knockT: 0, batHitT: -9, rimGrab: true,
+        // drama
+        grudge: -1, grudgeT: 0,
+        teeter: 0, teeterSave: false, teeterLean: 0, consecSaves: 0, lastTeeterT: -9,
+      });
+    }
+    document.getElementById('aliveCount').textContent = n;
+  }
+
+  // ---------- Effects ----------
+  function spawnHitParticles(x, y, color, strength) {
+    const n = Math.min(3 + Math.floor(strength), 10);
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, Math.PI * 2), sp = rand(1, 2 + strength * 0.6);
+      particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, r: rand(2, 4.5), color });
+    }
+    if (particles.length > 400) particles.splice(0, particles.length - 400);
+  }
+  function spawnPoof(x, y, color) {
+    for (let i = 0; i < 22; i++) {
+      const a = rand(0, Math.PI * 2), sp = rand(1.5, 6);
+      particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, r: rand(3, 7), color });
+    }
+  }
+  function addFloater(x, y, text, color, big) {
+    floaters.push({ x, y, text, color, life: 1, vy: -0.9, big: !!big });
+    if (floaters.length > 8) floaters.shift();    // cap — no text soup
+  }
+  function burstConfetti() {
+    const colors = ['#ffd23f', '#ff4d6d', '#25d366', '#7b5bff', '#3fd0ff', '#ff8a3d'];
+    for (let i = 0; i < 160; i++) {
+      confetti.push({
+        x: rand(0, W), y: rand(-H * 0.4, 0),
+        vx: rand(-2, 2), vy: rand(2, 6),
+        r: rand(4, 9), rot: rand(0, 6.28), vr: rand(-0.3, 0.3),
+        color: colors[i % colors.length],
+      });
+    }
+  }
+
+  // ---------- Bat swings ----------
+  // Phones get a big radius on a small arena, so cap reach against the arena too —
+  // otherwise a bat covers half the ring and everyone is permanently in range.
+  function batReach(p) { return Math.min(p.r * (1 + BAT_LEN), arena.R * 0.30); }
+
+  let lastSwoosh = 0;
+  function startSwing(p) {
+    p.swingT = 0;
+    p.hitIds.length = 0;
+    p.batSide = Math.cos(p.aim) >= 0 ? 1 : -1;      // arc reads as travelling toward the target
+    p.vx += Math.cos(p.aim) * 0.5 * arena.scale;    // step into the pitch
+    p.vy += Math.sin(p.aim) * 0.5 * arena.scale;
+    const now = performance.now();
+    if (now - lastSwoosh > 70) { lastSwoosh = now; beep(880, 0.05, 'sine', 0.035, 300); }
+  }
+
+  // Only the active middle window of a swing can connect; each swing hits a target once.
+  function resolveSwings() {
+    for (const a of players) {
+      if (!a.alive || a.falling || a.swingT < SW_WIND) continue;
+      const prog = (a.swingT - SW_WIND) / SW_HIT;
+      if (prog > 1) continue;
+      const batAng = a.aim + (prog - 0.5) * BAT_ARC * a.batSide;
+      const reach = batReach(a);
+      for (const b of players) {
+        if (b === a || !b.alive || b.falling) continue;
+        if (a.hitIds.includes(b.id)) continue;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d > reach + b.r) continue;
+        const rel = Math.atan2(dy, dx) - batAng;
+        if (Math.abs(Math.atan2(Math.sin(rel), Math.cos(rel))) > BAT_CONE) continue;
+        a.hitIds.push(b.id);
+        batHit(a, b, dx / d, dy / d, batAng);
+      }
+    }
+  }
+
+  function batHit(a, b, nx, ny, batAng) {
+    // power ramps with the match so the opening isn't a bloodbath
+    const pw = suddenDeath ? 1.2 : lerp(0.40, 0.95, gameT / 65);
+    // launch away from the batter, biased along the bat tip's travel
+    const tx = -Math.sin(batAng) * a.batSide, ty = Math.cos(batAng) * a.batSide;
+    let lx = nx + tx * 0.45, ly = ny + ty * 0.45;
+    const ll = Math.hypot(lx, ly) || 1; lx /= ll; ly /= ll;
+
+    const speed = rand(8, 11) * arena.scale * pw;
+    b.vx = lx * speed; b.vy = ly * speed;
+    b.vz = Math.max(b.vz, rand(220, 330) * pw);
+    b.knockT = KNOCK_T;
+    b.batHitT = gameT;
+    b.squash = 0.5;
+    b.grudge = a.id; b.grudgeT = 5;                 // getting clubbed makes it personal
+    // rolled once per hit: does this launch end at the rim clinging on, or clean out?
+    b.rimGrab = suddenDeath ? false : Math.random() < lerp(0.97, 0.15, gameT / 45);
+    a.vx -= lx * speed * 0.14; a.vy -= ly * speed * 0.14;
+    a.squash = Math.max(a.squash, 0.18);
+
+    const hx = b.x - nx * b.r * 0.6, hy = groundY(b.y - ny * b.r * 0.6) - b.z - b.r * 0.9;
+    spawnHitParticles(hx, hy, '#ffd23f', 6 + pw * 4);
+    spawnHitParticles(hx, hy, '#fff', 4);
+    lastCollT = gameT;
+    addTrauma(0.18 + 0.22 * pw);
+    beep(150, 0.09, 'square', 0.16 * pw, 55);       // crack
+    beep(1500, 0.035, 'square', 0.10 * pw);
+
+    const now = performance.now();
+    if (pw > 0.9 && now - lastFreeze > 380 && timeScale > 0.999) {
+      lastFreeze = now;
+      freezeT = 0.05;
+      impactFX = { x: hx, y: hy, nx: lx, ny: ly, t: 0.09 };
+      addFloater(hx, hy - 20, T.clang, '#ffd23f', true);
+    }
+    // no balancing on the rim once a bat lands
+    if (b.teeter > 0) startFall(b);
+  }
+
+  // ---------- Fall ----------
+  function startFall(p) {
+    p.teeter = 0; p.swingT = -1;
+    p.falling = true; p.fallT = 0;
+    const homer = gameT - p.batHitT < 0.8;         // still flying from a bat = home run
+    const dc = Math.hypot(p.x - arena.cx, p.y - arena.cy) || 1;
+    const nx = (p.x - arena.cx) / dc, ny = (p.y - arena.cy) / dc;
+    const keep = homer ? 0.9 : 0.4;                // don't damp a launch on the way out
+    p.vx = nx * 2.5 + p.vx * keep; p.vy = ny * 2.5 + p.vy * keep;
+    p.vz = homer ? Math.max(p.vz, 200) : 130;
+    p.rotV = rand(4, 8) * (Math.random() < 0.5 ? -1 : 1);
+    const gy = groundY(p.y);
+    spawnPoof(p.x, gy, p.color);
+    addFloater(p.x, gy - 30, homer ? T.homer : T.out, homer ? '#ffd23f' : '#ff4d6d', homer);
+    addTrauma(homer ? 0.6 : 0.45);
+    if (homer) fireFlash();
+    lastElimT = gameT; directorOn = false;
+
+    // KO chain sound (rising pitch ladder)
+    if (gameT - koChainT < 3.5) koChainIdx = Math.min(koChainIdx + 1, 6); else koChainIdx = 0;
+    koChainT = gameT;
+    beep(320 * Math.pow(1.19, koChainIdx), 0.15, 'sawtooth', 0.14);
+    beep(180, 0.22, 'sine', 0.1);
+
+    // simultaneous-falls jackpot (no kill attribution — just the spectacle)
+    fallTimes.push(gameT);
+    fallTimes = fallTimes.filter(t => gameT - t < 1.5);
+    if (fallTimes.length === 2) showBanner(T.doubleOut, '#ffd23f');
+    else if (fallTimes.length >= 3) { showBanner(T.monsterOut, '#ffd23f', 1.4, true); fireFlash(); addTrauma(0.5); }
+  }
+
+  // ---------- Update ----------
+  function update(dt, fm) {
+    // dt = game-time seconds this step (slow-mo scaled); fm = frame multiplier (dt·60)
+    gameT += dt;
+    spin += dt * 0.4;
+
+    const aliveAll = players.filter(p => p.alive);
+    const aliveList = aliveAll.filter(p => !p.falling && p.teeter <= 0);
+    const aliveNF = aliveAll.filter(p => !p.falling).length;
+
+    // ----- sudden death -----
+    if (!suddenDeath && gameT >= SD_TIME && state === 'playing') {
+      suddenDeath = true;
+      showBanner(T.suddenDeath, '#ff3b4d', 1.5, true);
+      [0, 140, 280].forEach((ms, i) => setTimeout(() => beep(300 + i * 90, 0.1, 'square', 0.16), ms));
+    }
+
+    // ----- arena shrink (proportional, piecewise, throttle-safe) -----
+    let rate = 0;
+    if (gameT > 8) rate = arena.R0 * (suddenDeath ? 0.033 : 0.0108);
+    rate *= 1 + 0.02 * elimCount;
+    if (directorOn) rate *= 1.25;
+    if (final2T >= 0 && gameT - final2T > 8) rate *= 1.5;   // finalists stalling → force it
+    const minR = arena.R0 * (suddenDeath ? 0.20 : 0.34);
+    if (gameT >= COLLAPSE_TIME) arena.R = Math.max(1, arena.R - (arena.R0 / 2.5) * dt);  // collapse — physics crowns the winner
+    else arena.R = Math.max(minR, arena.R - rate * dt);
+
+    // ----- aggression curve -----
+    let aggr = (0.020 + 0.00028 * gameT + 0.002 * elimCount) * arena.scale;
+    if (suddenDeath) aggr *= 1.5;
+    if (directorOn) aggr *= 1.25;
+    if (aggrPulseT > 0) { aggr *= 2; aggrPulseT -= dt; }
+    if (final2T >= 0) aggr *= 1.3;                          // post-face-off charge
+    const maxSp = (suddenDeath ? 10 : 6 + 3 * Math.min(1, gameT / SD_TIME)) * arena.scale;
+
+    // ----- bat cadence: swings come faster as the match heats up -----
+    let cdRate = 1 + 0.015 * gameT + 0.04 * elimCount;
+    if (suddenDeath) cdRate *= 1.6;
+    if (directorOn) cdRate *= 1.2;
+    cdRate = clamp(cdRate, 1, 5);
+
+    // anti-dead-air director
+    if (!directorOn && gameT - lastElimT > 10 && aliveNF > 4) directorOn = true;
+    if (gameT - lastCollT > 2.5 && aliveNF >= 2) { aggrPulseT = 1; lastCollT = gameT; }
+
+    // ----- face-off + final slow-mo triggers -----
+    if (state === 'playing' && aliveNF === 2 && prevAliveNF > 2 && !faceOffDone && !finalSlowmoDone) {
+      faceOffDone = true; final2T = gameT;
+      const two = aliveAll.filter(p => !p.falling);
+      if (two.length === 2) {
+        showBanner(`${T.finalRound} ${dispName(two[0])} VS ${dispName(two[1])}`, '#ffd23f', 1.6, true);
+        setSlowmo(0.15, 0.8);
+        beep(392, 0.18, 'triangle', 0.18); setTimeout(() => beep(523, 0.3, 'triangle', 0.18), 160);
+        for (const p of two) { p.vx *= 0.15; p.vy *= 0.15; }
+        const [a, b] = two;
+        a.lookX = Math.sign(b.x - a.x) || 1; a.lookY = 0;
+        b.lookX = Math.sign(a.x - b.x) || 1; b.lookY = 0;
+      }
+    }
+    prevAliveNF = aliveNF;
+    if (state === 'playing' && !finalSlowmoDone && aliveNF === 1 && aliveAll.length > 1) {
+      finalSlowmoDone = true;                                // the match-winning fall — savor it
+      setSlowmo(0.3, 0.9);
+      const faller = aliveAll.find(p => p.falling);
+      if (faller) { cam.tx = faller.x; cam.ty = groundY(faller.y); cam.tz = 1.5; }
+    }
+
+    // ----- heartbeat -----
+    if ((aliveNF <= 2 || suddenDeath) && state === 'playing' && AC) {
+      hbT -= dt;
+      if (hbT <= 0) {
+        hbT = lerp(0.9, 0.55, 1 - arena.R / arena.R0);
+        beep(65, 0.09, 'sine', 0.4); setTimeout(() => beep(50, 0.11, 'sine', 0.35), 140);
+        duckUntil = performance.now() + 260;
+      }
+    }
+
+    // ----- camera targets -----
+    if (state === 'playing' && slowmo.t <= 0) {
+      if (aliveNF <= 3 && aliveNF >= 2) {
+        const survivors = aliveAll.filter(p => !p.falling);
+        let sx = 0, sy = 0;
+        for (const p of survivors) { sx += p.x; sy += groundY(p.y); }
+        sx /= survivors.length; sy /= survivors.length;
+        const mR = arena.R * 0.5;
+        cam.tx = clamp(sx, arena.cx - mR, arena.cx + mR);
+        cam.ty = clamp(sy, groundY(arena.cy) - mR * TILT, groundY(arena.cy) + mR * TILT);
+        cam.tz = faceOffDone ? 1.3 : 1.2;
+      } else if (aliveNF > 3) { cam.tx = W / 2; cam.ty = H * 0.5; cam.tz = 1; }
+    }
+    const ck = 1 - Math.pow(0.94, fm);
+    cam.x += (cam.tx - cam.x) * ck; cam.y += (cam.ty - cam.y) * ck; cam.zoom += (cam.tz - cam.zoom) * ck;
+
+    // ----- players -----
+    for (const p of players) {
+      if (!p.alive) continue;
+
+      if (p.falling) {
+        p.fallT += dt;
+        p.x += p.vx * fm; p.y += p.vy * fm;
+        p.vz -= 1300 * dt; p.z += p.vz * dt;
+        p.rot += p.rotV * dt;
+        if (p.z < -300) {
+          p.alive = false; elimCount++;
+          if (!eliminationOrder.includes(p)) eliminationOrder.push(p);   // same-frame double-KO safe
+          checkWin();
+        }
+        continue;
+      }
+
+      // --- teeter (edge near-miss drama) ---
+      if (p.teeter > 0) {
+        p.teeter -= dt;
+        p.phase += dt * 26;                                  // arms windmill
+        // stay pinned to the (shrinking) rim so a save can't be contradicted next frame
+        const dcT = Math.hypot(p.x - arena.cx, p.y - arena.cy) || 1;
+        const nxT = (p.x - arena.cx) / dcT, nyT = (p.y - arena.cy) / dcT;
+        const holdT = Math.max(2, arena.R - p.r * 0.35);     // clamped: collapse-safe
+        p.x = arena.cx + nxT * holdT; p.y = arena.cy + nyT * holdT;
+        p.teeterLean = nxT * 0.45;
+        // gravity still applies (may have entered teeter mid-hop)
+        if (p.z > 0 || p.vz !== 0) {
+          p.vz -= 1500 * dt; p.z += p.vz * dt;
+          if (p.z <= 0) { p.z = 0; p.vz = 0; }
+        }
+        if (p.teeter <= 0) {
+          if (p.teeterSave) {
+            const dc = Math.hypot(p.x - arena.cx, p.y - arena.cy) || 1;
+            const nx = (p.x - arena.cx) / dc, ny = (p.y - arena.cy) / dc;
+            p.vx = -nx * 3; p.vy = -ny * 3; p.vz = 200;
+            p.consecSaves++;
+            addFloater(p.x, groundY(p.y) - 44, T.save, '#3dff8a', true);
+            spawnPoof(p.x, groundY(p.y), 'rgba(200,200,200,0.7)');
+            beep(200, 0.12, 'sine', 0.16, 500);              // boing sweep
+          } else startFall(p);
+        }
+        continue;
+      }
+
+      // --- bat timers ---
+      if (p.knockT > 0) p.knockT -= dt;
+      if (p.swingT >= 0) {
+        p.swingT += dt;
+        if (p.swingT >= SW_DUR) { p.swingT = -1; p.swingCd = rand(1.2, 2.4) / cdRate; }
+      } else if (p.swingCd > 0) p.swingCd -= dt;
+      // a hit interrupts the swing — you can't bat while flying
+      if (p.knockT > 0 && p.swingT >= 0) { p.swingT = -1; p.swingCd = Math.max(p.swingCd, 0.35); }
+
+      // seek: grudge target overrides nearest (revenge arc)
+      p.grudgeT -= dt; if (p.grudgeT <= 0) p.grudge = -1;
+      let near = null, nd = Infinity;
+      if (p.grudge >= 0) {
+        const g = players[p.grudge];
+        if (g && g.alive && !g.falling) near = g;
+        else { p.grudge = -1; }
+      }
+      if (!near) {
+        for (const q of aliveList) {
+          if (q === p) continue;
+          const d = (q.x - p.x) ** 2 + (q.y - p.y) ** 2;
+          if (d < nd) { nd = d; near = q; }
+        }
+      }
+      // stunned players keep flying; planted feet during a swing
+      const ctl = p.knockT > 0 ? 0 : (p.swingT >= 0 ? 0.22 : 1);
+      if (near && ctl > 0) {
+        const dx = near.x - p.x, dy = near.y - p.y, d = Math.hypot(dx, dy) || 1;
+        const boost = p.grudge >= 0 ? 1.15 : 1;              // revenge = faster
+        p.vx += (dx / d) * aggr * boost * ctl * fm;
+        p.vy += (dy / d) * aggr * boost * ctl * fm;
+
+        // aim keeps tracking until the bat commits (start of the active arc)
+        if (p.swingT < 0 || p.swingT < SW_WIND) {
+          const lead = (p.swingT < 0 ? SW_WIND : SW_WIND - p.swingT) * 60;
+          p.aim = Math.atan2(dy + near.vy * lead, dx + near.vx * lead);
+        }
+        // swing when the target is inside reach and the bat is ready
+        if (p.swingT < 0 && p.swingCd <= 0 && d < batReach(p) * 0.95 + near.r * 0.7) {
+          startSwing(p);
+        }
+      }
+      if (p.knockT <= 0) {
+        p.vx += rand(-0.08, 0.08) * arena.scale * fm;
+        p.vy += rand(-0.08, 0.08) * arena.scale * fm;
+      }
+
+      // center pull: bats shove people outward all match, so they keep walking back in.
+      // It fades out so late-game launches actually stick.
+      if (p.knockT <= 0) {
+        const dc0 = Math.hypot(p.x - arena.cx, p.y - arena.cy);
+        if (dc0 > arena.R * 0.55) {
+          const pull = (gameT < 8 ? 0.032 : lerp(0.032, 0.004, (gameT - 8) / 34)) * arena.scale * fm;
+          p.vx -= (p.x - arena.cx) / dc0 * pull;
+          p.vy -= (p.y - arena.cy) / dc0 * pull;
+        }
+      }
+
+      const fr = Math.pow(p.knockT > 0 ? 0.995 : 0.985, fm);
+      p.vx *= fr; p.vy *= fr;
+      const sp = Math.hypot(p.vx, p.vy);
+      // a bat launch is allowed to break the cruising speed cap — that's the whole point
+      if (sp > maxSp && p.knockT <= 0) { p.vx = p.vx / sp * maxSp; p.vy = p.vy / sp * maxSp; }
+
+      p.x += p.vx * fm; p.y += p.vy * fm;
+
+      if (p.z > 0 || p.vz !== 0) {
+        p.vz -= 1500 * dt; p.z += p.vz * dt;
+        if (p.z <= 0) { p.z = 0; p.vz = 0; }
+      }
+
+      p.phase += dt * (3 + sp * 2.4);
+      if (sp > 0.3) { p.lookX = p.vx / sp; p.lookY = p.vy / sp; }
+      p.squash *= Math.pow(0.85, fm);
+
+      // --- edge check: teeter or fall ---
+      const dc = Math.hypot(p.x - arena.cx, p.y - arena.cy);
+      if (dc > arena.R - p.r * 0.3) {
+        const nx = (p.x - arena.cx) / (dc || 1), ny = (p.y - arena.cy) / (dc || 1);
+        const outSpeed = p.vx * nx + p.vy * ny;
+        const teeterCount = players.filter(q => q.teeter > 0).length;
+        // a launched player normally sails clean out — unless this hit rolled a rim grab
+        const launched = p.rimGrab && gameT - p.batHitT < 1.5;
+        const grabs = outSpeed < 3.5 * arena.scale || launched;
+        if (grabs && teeterCount < (launched ? 3 : 2) && p.consecSaves < 2) {
+          // enter teeter: clamp to rim, roll the save NOW (hits can still cancel it)
+          const hold = Math.max(2, arena.R - p.r * 0.35);
+          p.x = arena.cx + nx * hold; p.y = arena.cy + ny * hold;
+          p.vx = 0; p.vy = 0;
+          p.swingT = -1; p.knockT = 0;
+          p.teeter = rand(0.4, 0.7);
+          p.teeterLean = nx * 0.45;
+          p.lastTeeterT = gameT;
+          // bats send far more traffic to the rim than shoving did — saves have to be kinder
+          let saveOdds = gameT < 30 ? 0.89 : lerp(0.89, 0.45, (gameT - 30) / 22);
+          if (suddenDeath) saveOdds = 0.20;
+          if (aliveNF <= 2) saveOdds = 0;
+          p.teeterSave = Math.random() < saveOdds;
+          addFloater(p.x, groundY(p.y) - 48, '!', '#ffb03d', true);
+          beep(500, 0.05, 'square', 0.1); setTimeout(() => beep(650, 0.05, 'square', 0.1), 70);
+        } else if (dc > arena.R) {
+          startFall(p);
+        }
+      } else if (p.consecSaves > 0 && gameT - p.lastTeeterT > 5) {
+        p.consecSaves = 0;   // time-based reset — spatial reset alone is unreachable on a shrunk arena
+      }
+    }
+
+    // ----- bat swings (the real knockback source) -----
+    resolveSwings();
+
+    // ----- collisions: bodies only jostle now, bats do the launching -----
+    for (let i = 0; i < players.length; i++) {
+      const a = players[i];
+      if (!a.alive || a.falling) continue;
+      for (let j = i + 1; j < players.length; j++) {
+        const b = players[j];
+        if (!b.alive || b.falling) continue;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy);
+        const minD = a.r + b.r;
+        if (dist > 0 && dist < minD) {
+          const nx = dx / dist, ny = dy / dist;
+          const overlap = minD - dist;
+          const tm = a.mass + b.mass;
+          a.x -= nx * overlap * (b.mass / tm);
+          a.y -= ny * overlap * (b.mass / tm);
+          b.x += nx * overlap * (a.mass / tm);
+          b.y += ny * overlap * (a.mass / tm);
+
+          const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
+          const vn = rvx * nx + rvy * ny;
+          if (vn < 0) {
+            // soft: shoves keep the crowd churning, they no longer eliminate anyone
+            const rest = suddenDeath ? 0.55 : lerp(0.35, 0.5, gameT / 40);
+            const jimp = -(1 + rest) * vn / (1 / a.mass + 1 / b.mass);
+            const ix = jimp * nx, iy = jimp * ny;
+            a.vx -= ix / a.mass; a.vy -= iy / a.mass;
+            b.vx += ix / b.mass; b.vy += iy / b.mass;
+
+            const svn = -vn / arena.scale;   // impact strength normalized for arena size
+            lastCollT = gameT;
+            if (svn > 2.5) {
+              const mx = (a.x + b.x) / 2, my = groundY((a.y + b.y) / 2);
+              spawnHitParticles(mx, my, '#fff', Math.min(svn * 0.6, 6));
+              a.squash = b.squash = Math.min(0.35, svn * 0.04);
+              if (svn > 6) {                                 // only a launched body still slams
+                const hop = Math.min(180, 40 + svn * 12);
+                a.vz = Math.max(a.vz, hop);
+                b.vz = Math.max(b.vz, hop);
+                addTrauma(Math.min(0.2, svn * 0.02));
+              }
+              hitSound(svn * 0.7);
+            }
+            // a teetering rival only gets finished by a body arriving as a projectile
+            if (a.teeter > 0 && b.knockT > 0) startFall(a);
+            if (b.teeter > 0 && a.knockT > 0) startFall(b);
+          }
+        }
+      }
+    }
+
+    // ----- particles / floaters / confetti -----
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx * fm; p.y += p.vy * fm;
+      const dr = Math.pow(0.92, fm); p.vx *= dr; p.vy *= dr;
+      p.life -= dt * 2.2;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+    for (let i = floaters.length - 1; i >= 0; i--) {
+      const f = floaters[i]; f.y += f.vy * fm; f.life -= dt * 1.3;
+      if (f.life <= 0) floaters.splice(i, 1);
+    }
+    for (let i = confetti.length - 1; i >= 0; i--) {
+      const c = confetti[i];
+      c.x += c.vx * fm; c.y += c.vy * fm; c.vy += 0.12 * fm; c.rot += c.vr * fm;
+      if (c.y > H + 20) confetti.splice(i, 1);
+    }
+
+    trauma *= Math.pow(0.9, fm);
+    if (aliveEl._v !== aliveNF) { aliveEl._v = aliveNF; aliveEl.textContent = aliveNF; }
+    window.__st = { t: Math.round(gameT * 10) / 10, aliveNF, state, sd: suddenDeath,
+      W, H, cx: Math.round(arena.cx), R0: Math.round(arena.R0), iw: window.innerWidth };
+  }
+
+  function checkWin() {
+    const alive = players.filter(p => p.alive);
+    if (alive.length <= 1 && state === 'playing') {
+      state = 'over';
+      winner = alive[0] || eliminationOrder[eliminationOrder.length - 1];
+      if (winner && !eliminationOrder.includes(winner)) eliminationOrder.push(winner);
+      cam.tx = W / 2; cam.ty = H * 0.5; cam.tz = 1;
+      setTimeout(showWinner, 1100);
+      burstConfetti(); fanfare(); addTrauma(0.8);
+    }
+  }
+
+  // ---------- Stickman ----------
+  function drawStickman(p, dangerAlphaDiv) {
+    const s = p.r / 12;
+    const gy = groundY(p.y);
+    const sp = Math.hypot(p.vx, p.vy);
+    const runAmt = Math.min(1, sp * 0.30 + 0.15);
+    const bob = (p.falling || p.teeter > 0) ? 0 : Math.abs(Math.sin(p.phase)) * 2.2 * s * runAmt;
+    const sx = p.x, sy = gy - p.z - bob;
+
+    // danger glow (orange pre-cue, under the shadow)
+    if (dangerAlphaDiv > 0 && !p.falling && p.teeter <= 0) {
+      const dc = Math.hypot(p.x - arena.cx, p.y - arena.cy);
+      const depth = (dc - 0.78 * arena.R) / (0.22 * arena.R);
+      if (depth > 0) {
+        ctx.globalAlpha = clamp((0.2 + 0.2 * Math.sin(gameT * 8)) * clamp(depth, 0, 1) / dangerAlphaDiv, 0, 0.45);
+        ctx.beginPath();
+        ctx.ellipse(sx, gy, p.r * 1.6, p.r * 0.55, 0, 0, 7);
+        ctx.fillStyle = 'rgb(255,120,40)'; ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // floor shadow
+    if (!p.falling) {
+      const shrink = 1 / (1 + Math.max(0, p.z) * 0.012);
+      ctx.globalAlpha = 0.30 * shrink;
+      ctx.beginPath();
+      ctx.ellipse(sx, gy, p.r * 0.95 * shrink, p.r * 0.32 * shrink, 0, 0, 7);
+      ctx.fillStyle = '#000'; ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    const fade = p.falling ? Math.max(0, 1 - Math.max(0, -p.z - 40) / 220) : 1;
+    if (fade <= 0) return;
+
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.translate(sx, sy);
+    ctx.rotate(p.falling ? p.rot : (p.teeter > 0 ? p.teeterLean : clamp(p.vx * 0.035, -0.3, 0.3)));
+    ctx.scale(1 + p.squash * 0.5, 1 - p.squash * 0.5);
+
+    // chunky/cute proportions: short body, stubby limbs, big head
+    const hipY = -8.5 * s, neckY = -16 * s, headR = 7.6 * s;
+    const headY = neckY - headR * 0.75;
+    const flail = (p.falling || p.teeter > 0) ? (p.falling ? p.fallT * 26 : p.phase) : p.phase;
+    const swing = Math.sin(flail) * ((p.falling || p.teeter > 0) ? 1.1 : 0.95 * runAmt);
+
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = Math.max(3, 4.2 * s);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.shadowColor = p.color; ctx.shadowBlur = 12;
+
+    const legL = 8.5 * s, armL = 7.5 * s, shY = neckY + 1.5 * s;
+
+    // ----- bat pose (angles use the arm convention: 0 = straight down) -----
+    const BAT_REST = -2.55, BAT_WIND = -2.05, BAT_END = 1.6;
+    const bs = p.batSide || 1;
+    let bth, arcA = null, arcB = null;
+    if (p.falling || p.teeter > 0) {
+      bth = BAT_REST + Math.sin(flail) * 0.5;
+    } else if (p.swingT >= 0) {
+      const t = p.swingT;
+      if (t < SW_WIND) {
+        bth = lerp(BAT_REST, BAT_WIND, Math.pow(t / SW_WIND, 0.6));
+      } else if (t < SW_WIND + SW_HIT) {
+        const k = (t - SW_WIND) / SW_HIT;
+        bth = lerp(BAT_WIND, BAT_END, k);
+        arcA = BAT_WIND; arcB = bth;
+      } else {
+        const k = (t - SW_WIND - SW_HIT) / SW_REC;
+        bth = lerp(BAT_END, BAT_REST, k * k);
+        if (k < 0.4) { arcA = lerp(BAT_WIND, BAT_END, 0.5); arcB = bth; }
+      }
+    } else {
+      bth = BAT_REST + Math.sin(p.phase) * 0.10 * runAmt;
+    }
+    bth *= bs;
+    const bux = Math.sin(bth), buy = Math.cos(bth);
+    const gripD = armL * 0.62;
+    const batL = 25 * s * (batReach(p) / (p.r * (1 + BAT_LEN)));   // drawn length matches real reach
+    // hands sit out to the cocked side, so the resting bat runs past the head instead of across the face
+    const anchorX = -bs * 4.6 * s;
+    const hx = anchorX + bux * gripD, hy = shY + buy * gripD;
+
+    // swing swoosh (under the body)
+    if (arcA !== null) {
+      const a0 = Math.PI / 2 - arcA * bs, a1 = Math.PI / 2 - arcB * bs;
+      ctx.save();
+      ctx.globalAlpha = fade * 0.4;
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(2, 3.4 * s);
+      ctx.shadowColor = '#fff'; ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(anchorX, shY, gripD + batL * 0.92, Math.min(a0, a1), Math.max(a0, a1));
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(0, hipY); ctx.lineTo(Math.sin(swing) * legL, hipY + Math.cos(swing * 0.8) * legL);
+    ctx.moveTo(0, hipY); ctx.lineTo(-Math.sin(swing) * legL, hipY + Math.cos(swing * 0.8) * legL);
+    ctx.moveTo(0, hipY); ctx.lineTo(0, neckY);
+    // both arms reach the grip — everyone is holding a bat two-handed
+    ctx.moveTo(-1.7 * s, shY); ctx.lineTo(hx, hy);
+    ctx.moveTo(1.7 * s, shY); ctx.lineTo(hx + bux * 2.4 * s, hy + buy * 2.4 * s);
+    ctx.stroke();
+
+    // head
+    ctx.beginPath(); ctx.arc(0, headY, headR, 0, 7);
+    ctx.fillStyle = p.color; ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.arc(-headR * 0.3, headY - headR * 0.3, headR * 0.32, 0, 7);
+    ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fill();
+
+    // eyes
+    const ex = p.lookX * headR * 0.3, ey = p.lookY * headR * 0.22;
+    for (const m of [-1, 1]) {
+      ctx.beginPath(); ctx.arc(m * headR * 0.42, headY - headR * 0.05, headR * 0.30, 0, 7);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.beginPath(); ctx.arc(m * headR * 0.42 + ex, headY - headR * 0.05 + ey, headR * 0.15, 0, 7);
+      ctx.fillStyle = '#222'; ctx.fill();
+    }
+    // angry eyebrows while hunting a grudge
+    if (p.grudge >= 0 && !p.falling) {
+      ctx.strokeStyle = '#ff5050'; ctx.lineWidth = Math.max(1.5, 1.6 * s);
+      ctx.beginPath();
+      ctx.moveTo(-headR * 0.65, headY - headR * 0.55); ctx.lineTo(-headR * 0.15, headY - headR * 0.32);
+      ctx.moveTo(headR * 0.65, headY - headR * 0.55); ctx.lineTo(headR * 0.15, headY - headR * 0.32);
+      ctx.stroke();
+    }
+
+    // ----- the bat itself (drawn last so a swing reads over the body) -----
+    ctx.shadowBlur = 0; ctx.lineCap = 'round';
+    ctx.strokeStyle = '#7a4a22'; ctx.lineWidth = Math.max(2, 2.8 * s);
+    ctx.beginPath();
+    ctx.moveTo(hx - bux * 3 * s, hy - buy * 3 * s);
+    ctx.lineTo(hx + bux * batL * 0.5, hy + buy * batL * 0.5);
+    ctx.stroke();
+    ctx.strokeStyle = '#d7a267'; ctx.lineWidth = Math.max(3, 5 * s);
+    ctx.beginPath();
+    ctx.moveTo(hx + bux * batL * 0.42, hy + buy * batL * 0.42);
+    ctx.lineTo(hx + bux * batL, hy + buy * batL);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = Math.max(1, 1.4 * s);
+    ctx.beginPath();
+    ctx.moveTo(hx + bux * batL * 0.55, hy + buy * batL * 0.55);
+    ctx.lineTo(hx + bux * batL * 0.92, hy + buy * batL * 0.92);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // number tag
+    ctx.globalAlpha = fade;
+    ctx.font = `900 ${Math.max(10, 8.5 * s)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(0,0,0,.55)';
+    ctx.fillText(p.name, sx + 1, sy - 30 * s + 1);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(p.name, sx, sy - 30 * s);
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- Render ----------
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    const bg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H)*0.7);
+    bg.addColorStop(0, '#141230'); bg.addColorStop(1, '#07070f');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+    // camera (translate+scale only — no rotation)
+    ctx.translate(W * 0.5, H * 0.5);
+    ctx.scale(cam.zoom, cam.zoom);
+    ctx.translate(-cam.x, -cam.y);
+    // screen shake: trauma² displacement, suppressed during slow-mo/zoom
+    const shakePx = trauma * trauma * 14;
+    if (shakePx > 0.3 && timeScale > 0.999 && cam.zoom < 1.001) {
+      ctx.translate(rand(-shakePx, shakePx), rand(-shakePx, shakePx));
+    }
+
+    const { cx, cy, R } = arena;
+    const RT = R * TILT;
+    const wallH = Math.max(18, R * 0.14);
+
+    const drawable = players.filter(p => p.alive).sort((a, b) => a.y - b.y);
+    const behind = drawable.filter(p => p.falling && p.y < cy);
+    const front  = drawable.filter(p => !(p.falling && p.y < cy));
+
+    // danger-glow gating: only when ≤8 alive or SD; divide alpha when >3 glowing
+    const aliveNF = players.filter(p => p.alive && !p.falling).length;
+    let dangerDiv = 0;
+    if (aliveNF <= 8 || suddenDeath) {
+      const glowing = drawable.filter(p => !p.falling && p.teeter <= 0 &&
+        Math.hypot(p.x - cx, p.y - cy) > 0.78 * R).length;
+      dangerDiv = glowing > 3 ? glowing / 3 : 1;
+    }
+
+    for (const p of behind) drawStickman(p, dangerDiv);
+
+    if (R > 0) {
+      const wg = ctx.createLinearGradient(0, cy, 0, cy + RT + wallH);
+      wg.addColorStop(0, 'rgba(64,54,118,.95)');
+      wg.addColorStop(1, 'rgba(16,12,36,.95)');
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, R, RT, 0, 0, Math.PI, false);
+      ctx.ellipse(cx, cy + wallH, R, RT, 0, Math.PI, 0, true);
+      ctx.closePath();
+      ctx.fillStyle = wg; ctx.fill();
+
+      const g = ctx.createRadialGradient(cx, cy - RT * 0.25, R * 0.1, cx, cy, R);
+      g.addColorStop(0, 'rgba(86,74,150,.85)');
+      g.addColorStop(0.7, 'rgba(52,44,100,.85)');
+      g.addColorStop(1, 'rgba(38,32,78,.9)');
+      ctx.beginPath(); ctx.ellipse(cx, cy, R, RT, 0, 0, 7);
+      ctx.fillStyle = g; ctx.fill();
+
+      // rim: gold normally, crimson pulse (≤1.5Hz alpha, never a background flash) in sudden death
+      ctx.save();
+      ctx.beginPath(); ctx.ellipse(cx, cy, R, RT, 0, 0, 7);
+      if (suddenDeath) {
+        const a = 0.6 + 0.3 * Math.sin(gameT * Math.PI * 2 * 1.2);
+        ctx.strokeStyle = `rgba(255,50,70,${a})`;
+        ctx.shadowColor = 'rgba(255,40,60,.8)';
+      } else {
+        ctx.strokeStyle = 'rgba(255,210,63,.9)';
+        ctx.shadowColor = 'rgba(255,180,60,.8)';
+      }
+      ctx.lineWidth = 4; ctx.shadowBlur = 22;
+      ctx.stroke();
+      const r2 = Math.max(0, R - 14);
+      ctx.beginPath(); ctx.ellipse(cx, cy, r2, r2 * TILT, 0, 0, 7);
+      ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 2; ctx.shadowBlur = 0;
+      ctx.setLineDash([14, 18]); ctx.lineDashOffset = -spin * 40; ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    for (const p of particles) {
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * p.life + 0.5, 0, 7);
+      ctx.fillStyle = p.color; ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    for (const p of front) drawStickman(p, dangerDiv);
+
+    // hit-stop impact FX: white streak + speed lines along the collision normal
+    if (impactFX && impactFX.t > 0) {
+      const f = impactFX;
+      ctx.save();
+      ctx.globalAlpha = clamp(f.t / 0.09, 0, 1);
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.shadowColor = '#fff'; ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.moveTo(f.x - f.nx * 26, f.y - f.ny * 26 * TILT);
+      ctx.lineTo(f.x + f.nx * 26, f.y + f.ny * 26 * TILT);
+      for (let k = 0; k < 3; k++) {
+        const a = Math.atan2(f.ny, f.nx) + Math.PI / 2 + (k - 1) * 0.5;
+        ctx.moveTo(f.x + Math.cos(a) * 12, f.y + Math.sin(a) * 12);
+        ctx.lineTo(f.x + Math.cos(a) * 30, f.y + Math.sin(a) * 30);
+      }
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(f.x, f.y, 10, 0, 7);
+      ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fill();
+      ctx.restore();
+    }
+
+    for (const f of floaters) {
+      ctx.globalAlpha = Math.max(0, f.life);
+      ctx.font = `900 ${f.big ? 30 : 22}px sans-serif`; ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillText(f.text, f.x + 2, f.y + 2);
+      ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.restore();   // end camera
+
+    // ---- screen-space overlays ----
+    // confetti is a celebratory screen effect — drawn OUTSIDE the camera so zoom can't misplace it
+    for (const c of confetti) {
+      ctx.save();
+      ctx.translate(c.x, c.y); ctx.rotate(c.rot);
+      ctx.fillStyle = c.color;
+      ctx.fillRect(-c.r / 2, -c.r / 2, c.r, c.r * 1.6);
+      ctx.restore();
+    }
+    // gold radial vignette flash (≤80ms, ≤35% alpha, never full-screen white)
+    if (flashT > 0) {
+      const a = 0.35 * (flashT / 0.08);
+      const vg = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.25, W/2, H/2, Math.max(W,H)*0.75);
+      vg.addColorStop(0, 'rgba(255,210,63,0)');
+      vg.addColorStop(1, `rgba(255,190,50,${a})`);
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+    }
+    // center banner (single, spring pop)
+    if (banner) {
+      const bt = banner.t, d = banner.dur;
+      const pop = bt < 0.25 ? 1.6 - 2.4 * bt : 1;
+      const alpha = bt > d - 0.3 ? (d - bt) / 0.3 : 1;
+      ctx.save();
+      ctx.globalAlpha = clamp(alpha, 0, 1);
+      ctx.translate(W / 2, H * 0.30);
+      ctx.scale(pop, pop);
+      ctx.font = '900 44px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(10,8,20,.85)';
+      ctx.strokeText(banner.text, 0, 0);
+      ctx.fillStyle = banner.color;
+      ctx.shadowColor = banner.color; ctx.shadowBlur = 24;
+      ctx.fillText(banner.text, 0, 0);
+      ctx.restore();
+    }
+  }
+
+  // ---------- Countdown (dt-driven — throttle-safe) ----------
+  const CD_SEQ = ['3', '2', '1', 'GO!'];
+  function tickCountdown(dt) {
+    cdT += dt;
+    const idx = Math.floor(cdT / 0.72);
+    if (idx !== cdIdx) {
+      cdIdx = idx;
+      const el = document.getElementById('countdown');
+      if (idx < CD_SEQ.length) {
+        el.style.display = 'flex';
+        el.textContent = CD_SEQ[idx];
+        el.style.color = idx === 3 ? '#25d366' : '#ffd23f';
+        if (!reduceMotion) {
+          el.animate(
+            [{ transform: 'scale(1.6)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.3)', opacity: 0 }],
+            { duration: 700, easing: 'ease-out' }
+          );
+        }
+        beep(idx === 3 ? 660 : 440, 0.12, 'triangle', 0.14);
+      } else {
+        el.style.display = 'none';
+        state = 'playing';
+      }
+    }
+  }
+
+  // ---------- Loop (RAF + Web Worker, hit-stop & slow-mo aware) ----------
+  const STEP = 1 / 60;
+  let last = performance.now();
+  let lastSizeCheck = 0;
+  function step() {
+    const now = performance.now();
+    let realDt = (now - last) / 1000;
+    if (realDt < STEP * 0.9) return;
+    last = now;
+    if (realDt > 0.05) realDt = 0.05;
+
+    // embedded panes don't always fire 'resize' — poll for viewport drift
+    if (now - lastSizeCheck > 500) {
+      lastSizeCheck = now;
+      if (window.innerWidth !== W || window.innerHeight !== H) { resize(); remapWorld(); }
+    }
+
+    // hit-stop: freeze the world, keep rendering the held pose
+    if (freezeT > 0) {
+      freezeT -= realDt;
+      if (impactFX) impactFX.t -= realDt * 0.4;
+      render();
+      return;
+    }
+    if (impactFX) { impactFX.t -= realDt; if (impactFX.t <= 0) impactFX = null; }
+    if (flashT > 0) flashT -= realDt;
+    if (banner) { banner.t += realDt; if (banner.t > banner.dur) banner = null; }
+
+    // time scale (slow-mo)
+    if (slowmo.t > 0) { slowmo.t -= realDt; timeScale = slowmo.ts; }
+    else timeScale += (1 - timeScale) * Math.min(1, realDt * 2.5);
+    const dt = realDt * timeScale;
+    const fm = dt * 60;
+
+    if (state === 'countdown') tickCountdown(realDt);
+    else if (state === 'playing') update(dt, fm);
+    else if (state === 'over') {
+      if (winner && winner.alive) {
+        if (winner.falling) {
+          // staggered double-KO: the "winner" fell last — let them finish the fall, no resurrection
+          winner.fallT += dt;
+          winner.x += winner.vx * fm; winner.y += winner.vy * fm;
+          winner.vz -= 1300 * dt; winner.z += winner.vz * dt;
+          winner.rot += winner.rotV * dt;
+        } else {
+          winner.phase += dt * 10;
+          winner.vz -= 1500 * dt; winner.z += winner.vz * dt;
+          if (winner.z <= 0) { winner.z = 0; winner.vz = 340; }
+        }
+      }
+      const ck = 1 - Math.pow(0.94, fm);
+      cam.x += (cam.tx - cam.x) * ck; cam.y += (cam.ty - cam.y) * ck; cam.zoom += (cam.tz - cam.zoom) * ck;
+      for (let i = confetti.length - 1; i >= 0; i--) {
+        const c = confetti[i]; c.x += c.vx * fm; c.y += c.vy * fm; c.vy += 0.12 * fm; c.rot += c.vr * fm;
+        if (c.y > H + 20) confetti.splice(i, 1);
+      }
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i]; p.x += p.vx * fm; p.y += p.vy * fm;
+        const dr = Math.pow(0.92, fm); p.vx *= dr; p.vy *= dr; p.life -= dt * 2;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+      for (let i = floaters.length - 1; i >= 0; i--) {
+        const f = floaters[i]; f.y += f.vy * fm; f.life -= dt * 1.3;
+        if (f.life <= 0) floaters.splice(i, 1);
+      }
+      trauma *= Math.pow(0.9, fm);
+    }
+    render();
+  }
+  render();
+  (function raf() { step(); requestAnimationFrame(raf); })();
+  try {
+    const src = 'setInterval(function(){postMessage(0);},1000/70);';
+    const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    w.onmessage = step;
+  } catch (e) {
+    setInterval(step, 1000 / 60);
+  }
+
+  // ---------- Winner screen ----------
+  function showWinner() {
+    const ws = document.getElementById('winScreen');
+    document.getElementById('winName').textContent = winner ? dispName(winner) : '-';
+    const list = document.getElementById('rankList');
+    list.innerHTML = '';
+    const ranked = [];
+    for (let i = eliminationOrder.length - 1; i >= 0; i--) ranked.push(eliminationOrder[i]);
+    const medals = ['🥇', '🥈', '🥉'];
+    const cls = ['gold', 'silver', 'bronze'];
+    ranked.forEach((p, idx) => {
+      const li = document.createElement('li');
+      li.className = 'rankItem' + (idx < 3 ? ' ' + cls[idx] : '');
+      li.innerHTML =
+        `<span class="rankNo">${idx < 3 ? medals[idx] : (idx + 1)}</span>` +
+        `<span class="dot" style="background:${p.color}"></span>` +
+        `<span class="rankName">${esc(dispName(p))}</span>`;
+      list.appendChild(li);
+    });
+    ws.classList.remove('hidden');
+    buildShareCard(ranked);
+  }
+
+  // ---------- Shareable result card ----------
+  const SHARE_URL = T.shareUrl;
+  const CARD_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
+  const shareBtn = document.getElementById('shareBtn');
+  const toastEl = document.getElementById('toast');
+  let shareFile = null, sharePending = null, shareCaption = '', shareBusy = false, toastT = 0;
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastT);
+    toastT = setTimeout(() => toastEl.classList.remove('show'), 2400);
+  }
+
+  function roundRectPath(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+  // shrink until it fits — names cap at 8 chars but CJK/emoji widths vary a lot
+  function fitFont(c, text, maxW, maxSize, weight) {
+    let s = maxSize;
+    c.font = `${weight} ${s}px ${CARD_FONT}`;
+    while (s > 22 && c.measureText(text).width > maxW) {
+      s -= 4;
+      c.font = `${weight} ${s}px ${CARD_FONT}`;
+    }
+    return s;
+  }
+
+  function drawResultCard(ranked) {
+    const W = 1080, H = 1350, cx = W / 2;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const c = cv.getContext('2d');
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+
+    const bg = c.createRadialGradient(cx, -160, 60, cx, 420, 1250);
+    bg.addColorStop(0, '#2a1c66');
+    bg.addColorStop(.55, '#130f30');
+    bg.addColorStop(1, '#0a0a16');
+    c.fillStyle = bg;
+    c.fillRect(0, 0, W, H);
+
+    // header
+    c.fillStyle = '#9aa0c0';
+    c.font = `800 44px ${CARD_FONT}`;
+    c.fillText(T.cardTitle, cx, 96);
+    c.fillStyle = '#6f74a0';
+    c.font = `700 36px ${CARD_FONT}`;
+    c.fillText(T.cardPlayers(playerCount), cx, 158);
+
+    // 2nd / 3rd — only when they aren't also the last place
+    const mids = ranked.slice(1, 3).filter((_, i) => 1 + i < ranked.length - 1);
+
+    // winner panel
+    const wTop = 224, wH = mids.length ? 580 : 470;
+    c.fillStyle = 'rgba(255,210,63,.09)';
+    roundRectPath(c, 84, wTop, W - 168, wH, 48);
+    c.fill();
+    c.strokeStyle = 'rgba(255,210,63,.4)';
+    c.lineWidth = 3;
+    c.stroke();
+
+    c.font = `400 150px ${CARD_FONT}`;
+    c.fillText('👑', cx, wTop + 130);
+    c.fillStyle = '#ffd23f';
+    c.font = `900 40px ${CARD_FONT}`;
+    c.fillText('W I N N E R', cx, wTop + 240);
+
+    const wName = ranked[0] ? dispName(ranked[0]) : '-';
+    const wSize = fitFont(c, wName, W - 280, 122, 900);
+    const wGrad = c.createLinearGradient(cx - 300, 0, cx + 300, 0);
+    wGrad.addColorStop(0, '#ffe98a');
+    wGrad.addColorStop(.5, '#ffd23f');
+    wGrad.addColorStop(1, '#ff9d3d');
+    c.fillStyle = wGrad;
+    c.font = `900 ${wSize}px ${CARD_FONT}`;
+    c.fillText(wName, cx, wTop + 350);
+
+    if (mids.length) {
+      const medal = ['🥈', '🥉'];
+      const midText = mids.map((p, i) => `${medal[i]} ${dispName(p)}`).join('    ');
+      c.fillStyle = '#c3c6e4';
+      c.font = `800 ${fitFont(c, midText, W - 260, 40, 800)}px ${CARD_FONT}`;
+      c.fillText(midText, cx, wTop + 484);
+    }
+
+    // last place — centred in whatever room is left between the panel and the footer
+    const loser = ranked.length > 1 ? ranked[ranked.length - 1] : null;
+    const lH = 214, footerTop = H - 176;
+    const lTop = Math.round((wTop + wH + footerTop - lH) / 2);
+    if (loser) {
+      c.fillStyle = 'rgba(255,77,109,.12)';
+      roundRectPath(c, 84, lTop, W - 168, lH, 40);
+      c.fill();
+      c.strokeStyle = 'rgba(255,77,109,.38)';
+      c.lineWidth = 3;
+      c.stroke();
+      c.fillStyle = '#ff8fa3';
+      c.font = `900 36px ${CARD_FONT}`;
+      c.fillText(T.cardLast, cx, lTop + 62);
+      const lName = dispName(loser);
+      const lSize = fitFont(c, lName, W - 300, 76, 900);
+      c.fillStyle = '#ff4d6d';
+      c.font = `900 ${lSize}px ${CARD_FONT}`;
+      c.fillText(lName, cx, lTop + 142);
+    }
+
+    // footer
+    c.fillStyle = '#7b8bff';
+    c.font = `800 34px ${CARD_FONT}`;
+    c.fillText(T.cardCta, cx, H - 128);
+    c.fillStyle = '#9aa0c0';
+    c.font = `800 38px ${CARD_FONT}`;
+    c.fillText('kimdoogi.github.io/ranking-game', cx, H - 68);
+
+    return cv;
+  }
+
+  // Built as soon as the win screen appears: navigator.share() must run inside the
+  // click's user activation, and awaiting toBlob() there loses it on iOS Safari.
+  function buildShareCard(ranked) {
+    shareFile = null;
+    const win = ranked[0] ? dispName(ranked[0]) : '-';
+    const loser = ranked.length > 1 ? dispName(ranked[ranked.length - 1]) : null;
+    shareCaption = T.shareCaption(win, loser) + `\n${T.gameName} ${SHARE_URL}`;
+    sharePending = new Promise(resolve => {
+      try {
+        drawResultCard(ranked).toBlob(b => {
+          if (b) {
+            try { shareFile = new File([b], 'push-royale-result.png', { type: 'image/png' }); }
+            catch (e) { shareFile = b; }   // no File ctor → blob still works for copy/download
+          }
+          resolve(shareFile);
+        }, 'image/png');
+      } catch (e) { resolve(null); }
+    });
+  }
+
+  shareBtn.onclick = async () => {
+    if (shareBusy) return;
+    shareBusy = true;
+    shareBtn.disabled = true;
+    try {
+      // Normally already encoded, so nothing is awaited before share() and the click's
+      // user activation survives. If the tap beat the encoder, wait for it and still try —
+      // a lost activation just throws, and the clipboard/download paths below pick it up.
+      if (!shareFile) toast(T.cardBuilding);
+      const file = shareFile || await sharePending;
+      if (!file) { toast(T.cardFailed); return; }
+
+      if (navigator.share && navigator.canShare && file.name && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], text: shareCaption });
+          return;
+        } catch (e) {
+          if (e && e.name === 'AbortError') return;   // user closed the sheet — not an error
+        }
+      }
+      if (navigator.clipboard && window.ClipboardItem) {
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': file })]);
+          toast(T.cardCopied);
+          return;
+        } catch (e) {}
+      }
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'push-royale-result.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      toast(T.cardSaved);
+    } catch (e) {
+      toast(T.shareFailed);
+    } finally {
+      shareBusy = false;
+      shareBtn.disabled = false;
+    }
+  };
+
+  // ---------- UI wiring ----------
+  // ---------- Roster: type "name * 4", the add button queues that many ----------
+  const MAXN = 30, MIN_START = 2;
+  const nameInput = document.getElementById('nameInput');
+  const addBtn = document.getElementById('addBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const rosterList = document.getElementById('rosterList');
+  const countVal = document.getElementById('countVal');
+  const lobbyHint = document.getElementById('lobbyHint');
+  const startBtn = document.getElementById('startBtn');
+  let entries = [];   // [{ name, count }]
+
+  const totalCount = () => entries.reduce((s, e) => s + e.count, 0);
+  function expandRoster() {
+    const out = [];
+    for (const e of entries) for (let k = 0; k < e.count; k++) { if (out.length >= MAXN) return out; out.push(e.name); }
+    return out;
+  }
+  // "name * 4" / "name x4" / "name x4" -> {name, 4}. No multiplier means a single entry.
+  function parseEntry(text) {
+    const line = (text || '').trim(); if (!line) return null;
+    let name = line, count = 1;
+    const m = line.match(/^(.+?)\s*[*xX×]\s*(\d+)\s*$/);
+    if (m) { name = m[1].trim(); count = parseInt(m[2], 10) || 1; }
+    name = name.slice(0, 8); if (!name) return null;
+    return { name, count: Math.max(1, count) };
+  }
+  function addEntry(text) {
+    const e = parseEntry(text); if (!e) return false;
+    const room = MAXN - totalCount(); if (room <= 0) return false;
+    e.count = Math.min(e.count, room);
+    const ex = entries.find(x => x.name === e.name);
+    if (ex) ex.count += e.count; else entries.push(e);
+    renderRoster(); return true;
+  }
+  function renderRoster() {
+    const total = totalCount();
+    window.__names = expandRoster();
+    playerCount = total;
+    countVal.textContent = total;
+    rosterList.innerHTML = '';
+    if (entries.length === 0) {
+      const em = document.createElement('div'); em.className = 'rosterEmpty';
+      em.textContent = T.rosterEmpty; rosterList.appendChild(em);
+    } else entries.forEach((e, i) => {
+      const chip = document.createElement('span'); chip.className = 'chip';
+      const lab = document.createElement('span'); lab.textContent = e.count > 1 ? `${e.name} ×${e.count}` : e.name;
+      const x = document.createElement('button'); x.className = 'chipX'; x.type = 'button'; x.textContent = '✕';
+      x.onclick = () => { entries.splice(i, 1); renderRoster(); };
+      chip.appendChild(lab); chip.appendChild(x); rosterList.appendChild(chip);
+    });
+    const ok = total >= MIN_START;
+    startBtn.disabled = !ok;
+    startBtn.style.opacity = ok ? '' : '.4';
+    startBtn.style.cursor = ok ? '' : 'not-allowed';
+    lobbyHint.textContent = total === 0 ? T.hintEmpty
+      : ok ? T.hintReady(total)
+           : T.hintNeedMore(MIN_START);
+    try { localStorage.setItem('minigame_roster', JSON.stringify(entries)); } catch (e) {}
+  }
+  addBtn.onclick = () => { if (addEntry(nameInput.value)) { nameInput.value = ''; nameInput.focus(); } };
+  nameInput.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); addBtn.onclick(); } });
+  clearBtn.onclick = () => { entries = []; renderRoster(); };
+  try {
+    const v = localStorage.getItem('minigame_roster');
+    if (v) entries = JSON.parse(v) || [];
+    else { const old = localStorage.getItem('minigame_names'); if (old) old.split('\n').forEach(l => addEntry(l)); }
+  } catch (e) { entries = []; }
+  renderRoster();
+
+  const dispName = p => p.isNum ? T.numName(p.name) : p.name;
+  const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function begin() {
+    resize();
+    if (!W || !H) { setTimeout(begin, 120); return; }   // pane not laid out yet — a 0-size arena is unrecoverable
+    window.__names = expandRoster();
+    if (window.__names.length < MIN_START) return;
+    playerCount = window.__names.length;
+    initAudio();
+    if (AC && AC.state === 'suspended') AC.resume();
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('winScreen').classList.add('hidden');
+    setupGame(playerCount);
+    cdT = 0; cdIdx = -1;
+    state = 'countdown';
+  }
+  document.getElementById('startBtn').onclick = begin;
+  document.getElementById('againBtn').onclick = begin;
+
+  let lastShake = 0;
+  const shakeBtn = document.getElementById('shakeBtn');
+  shakeBtn.onclick = () => {
+    if (state !== 'playing') return;
+    const now = performance.now();
+    if (now - lastShake < 3000) return;         // cooldown — spam can't end a match in 3s
+    lastShake = now;
+    shakeBtn.style.opacity = '0.4';
+    setTimeout(() => { shakeBtn.style.opacity = '1'; }, 3000);
+    for (const p of players) {
+      if (!p.alive || p.falling || p.teeter > 0) continue;
+      const a = rand(0, Math.PI * 2), f = rand(5, 11) * arena.scale;
+      p.vx += Math.cos(a) * f; p.vy += Math.sin(a) * f;
+      p.vz = Math.max(p.vz, rand(150, 320));
+      p.knockT = Math.max(p.knockT, 0.3);          // let the shake actually launch people
+      p.swingCd = rand(0, 0.2);                    // …into a flurry of swings
+    }
+    addTrauma(0.9); beep(90, 0.18, 'sawtooth', 0.16);
+    // burst on the arena itself (world coords — camera-safe)
+    for (let i = 0; i < 30; i++) {
+      const a = rand(0, Math.PI * 2), rr = Math.sqrt(Math.random()) * arena.R;
+      spawnHitParticles(arena.cx + Math.cos(a) * rr, groundY(arena.cy + Math.sin(a) * rr), '#ffd23f', 3);
+    }
+  };
+})();

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>障害物レース300 🏁 最大300人の名前で順位抽選 | 無料ブラウザゲーム</title>
+
+<!-- SEO -->
+<meta name="description" content="名前を最大300件入れて走らせ、順位を決めるレースミニゲーム。あみだくじやルーレットの代わりに、順番決め・罰ゲーム・チーム分けにどうぞ。インストール不要、無料。" />
+<meta name="keywords" content="障害物レース300, 名前 抽選, 順位 決め, あみだくじ, ルーレット, ランダム 抽選, ミニゲーム, 無料ゲーム, ブラウザゲーム, レースゲーム, カジュアルゲーム" />
+<meta name="author" content="kimdoogi" />
+<meta name="robots" content="index, follow" />
+<meta name="theme-color" content="#0a0a16" />
+<link rel="canonical" href="https://kimdoogi.github.io/ranking-game/obstacle-run-ja.html" />
+<link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/obstacle-run.html" />
+<link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/obstacle-run-en.html" />
+<link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/obstacle-run-zh.html" />
+<link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/obstacle-run-ja.html" />
+<link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/obstacle-run.html" />
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🏁</text></svg>' />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="ミニゲームアーケード" />
+<meta property="og:locale" content="ja_JP" />
+<meta property="og:locale:alternate" content="ko_KR" />
+<meta property="og:locale:alternate" content="en_US" />
+<meta property="og:locale:alternate" content="zh_CN" />
+<meta property="og:title" content="障害物レース300 🏁" />
+<meta property="og:description" content="ハンマーもクラッシャーも泥沼も越えて300m完走に挑戦！今すぐ無料でプレイ。" />
+<meta property="og:url" content="https://kimdoogi.github.io/ranking-game/obstacle-run-ja.html" />
+<meta property="og:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="障害物レース300 🏁" />
+<meta name="twitter:description" content="ハンマーもクラッシャーも泥沼も越えて300m完走に挑戦！今すぐ無料でプレイ。" />
+<meta name="twitter:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+
+<!-- Structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "障害物レース300",
+  "alternateName": "名前レース順位抽選",
+  "url": "https://kimdoogi.github.io/ranking-game/obstacle-run-ja.html",
+  "image": "https://kimdoogi.github.io/ranking-game/assets/og-image.png",
+  "description": "最大300人の名前が障害物を越えて順位を競うレースゲーム。",
+  "keywords": "名前 抽選, 順位 決め, あみだくじ, ルーレット, ランダム 抽選",
+  "inLanguage": "ja",
+  "genre": "Casual",
+  "gamePlatform": "Web browser",
+  "applicationCategory": "Game",
+  "operatingSystem": "Any (web browser)",
+  "author": { "@type": "Person", "name": "kimdoogi" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
+<link rel="stylesheet" href="obstacle-run.css" />
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="utilBar">
+  <a href="index-ja.html" title="ゲーム一覧" aria-label="ゲーム一覧に戻る">🏠</a>
+  <button id="muteBtn" type="button" aria-pressed="false" aria-label="ミュート" title="ミュート">🔊</button>
+</div>
+
+<div id="hud">
+  <div class="pill">🏁 完走 <span class="big" id="finCount">0</span><span id="totCount" style="opacity:.6">/300</span></div>
+  <button id="boomBtn">🍌 バナナの雨 ×3</button>
+</div>
+<div id="ffChip">⏩ ×3 早送り</div>
+<div id="ticker"></div>
+
+<div id="countdown"></div>
+
+<div class="overlay" id="startScreen">
+  <div class="title">障害物<br>レース</div>
+  <div class="subtitle">ハンマー、クラッシャー、泥沼を越えてゴールへ！最大300人 🏁
+    <span class="tagline">あみだくじ・ルーレット代わりの順位抽選 — 順番決め・罰ゲーム・チーム分け</span>
+  </div>
+  <div class="control">
+    <label>参加者を追加 <span class="hint"><b>名前 * 4</b> の形で入力して追加 · 最大300人</span></label>
+    <div class="addRow">
+      <input id="nameInput" type="text" placeholder="例：たろう * 4" autocomplete="off" />
+      <button id="addBtn" class="addBtn">追加</button>
+    </div>
+    <div class="presets">
+      <button class="preset" data-n="12">ボット +12</button>
+      <button class="preset" data-n="50">ボット +50</button>
+      <button class="preset" data-n="100">ボット +100</button>
+      <button class="preset" data-n="300">ボット +300</button>
+    </div>
+    <div class="rosterWrap">
+      <div class="rosterList" id="rosterList"></div>
+      <div class="rosterFoot">
+        <span class="lobbyCount"><span id="countVal">0</span>人</span>
+        <button id="clearBtn" class="clearBtn">すべて消す</button>
+      </div>
+    </div>
+    <div class="lobbyHint" id="lobbyHint"></div>
+  </div>
+  <button class="playBtn" id="startBtn">▶ スタート！</button>
+</div>
+
+<div class="overlay hidden" id="winScreen">
+  <div class="crown">🏆</div>
+  <div style="font-weight:800;color:#b8b8d8;letter-spacing:2px;">WINNER</div>
+  <div id="winName">-</div>
+  <ul class="rankList" id="rankList"></ul>
+  <button class="playBtn win" id="againBtn">🔄 もう一回</button>
+</div>
+
+<script>
+window.T = {
+  mute: 'ミュート',
+  unmute: 'ミュート解除',
+  slip: 'ツルッ！',
+  oops: 'おっと！',
+  thud: 'ドンッ！',
+  leadChange: 'トップ交代！',
+  finalStretch: '最後の直線！',
+  photoFinish: '写真判定！',
+  rankNo: n => `${n}位`,
+  winner: '優勝！',
+  finalGate: '⚠ 最終関門 ⚠',
+  reverseLane: '◀ 逆走レーン ▶',
+  pushLane: '≫ 横押しレーン ≫',
+  reviewing: '判定中…',
+  racersStart: n => `${n}人スタート！`,
+  botName: 'ボット',
+  bananaRain: n => `🍌 バナナの雨 ×${n}`,
+  bananaRainBanner: 'バナナの雨！！',
+  rosterEmpty: 'まだ参加者がいません',
+  hintEmpty: '名前を入力して追加を押してください',
+  hintReady: n => `${n}人参加 — スタートできます！`,
+  hintNeedMore: n => `${n}人以上からスタートできます`,
+  numName: n => n + '番'
+};
+</script>
+<script src="obstacle-run.js"></script>
+</body>
+</html>

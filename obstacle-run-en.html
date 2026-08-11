@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Obstacle Run 300 🏁 Race Up to 300 Names for a Ranking | Free Browser Game</title>
+
+<!-- SEO -->
+<meta name="description" content="Drop in up to 300 names and race them for a full ranking. Use it instead of a ladder game or roulette wheel to set turn order, penalties or teams. Free, no install." />
+<meta name="keywords" content="obstacle run 300, random name picker, ranking generator, ladder game, roulette, wheel of names, minigame, free game, browser game, running game, casual game" />
+<meta name="author" content="kimdoogi" />
+<meta name="robots" content="index, follow" />
+<meta name="theme-color" content="#0a0a16" />
+<link rel="canonical" href="https://kimdoogi.github.io/ranking-game/obstacle-run-en.html" />
+<link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/obstacle-run.html" />
+<link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/obstacle-run-en.html" />
+<link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/obstacle-run-zh.html" />
+<link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/obstacle-run-ja.html" />
+<link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/obstacle-run.html" />
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🏁</text></svg>' />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Minigame Arcade" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:locale:alternate" content="ko_KR" />
+<meta property="og:locale:alternate" content="zh_CN" />
+<meta property="og:locale:alternate" content="ja_JP" />
+<meta property="og:title" content="Obstacle Run 300 🏁" />
+<meta property="og:description" content="Hammers, crushers, mud — sprint 300m to the finish line! Play free." />
+<meta property="og:url" content="https://kimdoogi.github.io/ranking-game/obstacle-run-en.html" />
+<meta property="og:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Obstacle Run 300 🏁" />
+<meta name="twitter:description" content="Hammers, crushers, mud — sprint 300m to the finish line! Play free." />
+<meta name="twitter:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+
+<!-- Structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "Obstacle Run 300",
+  "alternateName": "Name race ranking generator",
+  "url": "https://kimdoogi.github.io/ranking-game/obstacle-run-en.html",
+  "image": "https://kimdoogi.github.io/ranking-game/assets/og-image.png",
+  "description": "A running game that races up to 300 names past obstacles for a full ranking.",
+  "keywords": "random name picker, ranking generator, ladder game, roulette, wheel of names",
+  "inLanguage": "en",
+  "genre": "Casual",
+  "gamePlatform": "Web browser",
+  "applicationCategory": "Game",
+  "operatingSystem": "Any (web browser)",
+  "author": { "@type": "Person", "name": "kimdoogi" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
+<link rel="stylesheet" href="obstacle-run.css" />
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="utilBar">
+  <a href="index-en.html" title="Game list" aria-label="Back to the game list">🏠</a>
+  <button id="muteBtn" type="button" aria-pressed="false" aria-label="Mute" title="Mute">🔊</button>
+</div>
+
+<div id="hud">
+  <div class="pill">🏁 Finished <span class="big" id="finCount">0</span><span id="totCount" style="opacity:.6">/300</span></div>
+  <button id="boomBtn">🍌 Banana rain ×3</button>
+</div>
+<div id="ffChip">⏩ ×3 fast-forward</div>
+<div id="ticker"></div>
+
+<div id="countdown"></div>
+
+<div class="overlay" id="startScreen">
+  <div class="title">Obstacle<br>Run</div>
+  <div class="subtitle">Hammers, crushers, mud — sprint to the tape! Up to 300 runners 🏁
+    <span class="tagline">A ranking picker instead of a ladder game or roulette wheel — turn order, penalties, teams</span>
+  </div>
+  <div class="control">
+    <label>Add players <span class="hint">type <b>name * 4</b> and hit Add · up to 300 runners</span></label>
+    <div class="addRow">
+      <input id="nameInput" type="text" placeholder="e.g. Alex * 4" autocomplete="off" />
+      <button id="addBtn" class="addBtn">Add</button>
+    </div>
+    <div class="presets">
+      <button class="preset" data-n="12">Bots +12</button>
+      <button class="preset" data-n="50">Bots +50</button>
+      <button class="preset" data-n="100">Bots +100</button>
+      <button class="preset" data-n="300">Bots +300</button>
+    </div>
+    <div class="rosterWrap">
+      <div class="rosterList" id="rosterList"></div>
+      <div class="rosterFoot">
+        <span class="lobbyCount"><span id="countVal">0</span> players</span>
+        <button id="clearBtn" class="clearBtn">Clear all</button>
+      </div>
+    </div>
+    <div class="lobbyHint" id="lobbyHint"></div>
+  </div>
+  <button class="playBtn" id="startBtn">▶ Go!</button>
+</div>
+
+<div class="overlay hidden" id="winScreen">
+  <div class="crown">🏆</div>
+  <div style="font-weight:800;color:#b8b8d8;letter-spacing:2px;">WINNER</div>
+  <div id="winName">-</div>
+  <ul class="rankList" id="rankList"></ul>
+  <button class="playBtn win" id="againBtn">🔄 Play again</button>
+</div>
+
+<script>
+window.T = {
+  mute: 'Mute',
+  unmute: 'Unmute',
+  slip: 'Slip!',
+  oops: 'Oops!',
+  thud: 'THUD!',
+  leadChange: 'New leader!',
+  finalStretch: 'Final stretch!',
+  photoFinish: 'Photo finish!',
+  rankNo: n => `#${n}`,
+  winner: 'Winner!',
+  finalGate: '⚠ FINAL GATE ⚠',
+  reverseLane: '◀ REVERSE LANE ▶',
+  pushLane: '≫ SIDE-PUSH LANE ≫',
+  reviewing: 'Reviewing…',
+  racersStart: n => `${n} runners off!`,
+  botName: 'Bot',
+  bananaRain: n => `🍌 Banana rain ×${n}`,
+  bananaRainBanner: 'BANANA RAIN!!',
+  rosterEmpty: 'No players yet',
+  hintEmpty: 'Type a name and hit Add',
+  hintReady: n => `${n} players — ready to start!`,
+  hintNeedMore: n => `Needs at least ${n} players to start`,
+  numName: n => '#' + n
+};
+</script>
+<script src="obstacle-run.js"></script>
+</body>
+</html>

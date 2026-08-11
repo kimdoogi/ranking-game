@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Monster Munch Escape 👾 Random Survivor Picker — Ladder Game & Roulette Alternative | Free Browser Game</title>
+
+<!-- SEO -->
+<meta name="description" content="Drop in names and the last one the monster fails to eat wins. A random picker to use instead of a ladder game or roulette wheel — decide penalties and turn order. Free, no install." />
+<meta name="keywords" content="monster munch escape, random name picker, wheel of names, ladder game, roulette, decision maker, minigame, free game, browser game, runner game, casual game" />
+<meta name="author" content="kimdoogi" />
+<meta name="robots" content="index, follow" />
+<meta name="theme-color" content="#0a0a16" />
+<link rel="canonical" href="https://kimdoogi.github.io/ranking-game/monster-chase-en.html" />
+<link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/monster-chase.html" />
+<link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/monster-chase-en.html" />
+<link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/monster-chase-zh.html" />
+<link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/monster-chase-ja.html" />
+<link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/monster-chase.html" />
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">👾</text></svg>' />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Minigame Arcade" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:locale:alternate" content="ko_KR" />
+<meta property="og:locale:alternate" content="zh_CN" />
+<meta property="og:locale:alternate" content="ja_JP" />
+<meta property="og:title" content="Monster Munch Escape 👾" />
+<meta property="og:description" content="Outrun the monster and survive to the end! Play free right now." />
+<meta property="og:url" content="https://kimdoogi.github.io/ranking-game/monster-chase-en.html" />
+<meta property="og:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Monster Munch Escape 👾" />
+<meta name="twitter:description" content="Outrun the monster and survive to the end! Play free right now." />
+<meta name="twitter:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+
+<!-- Structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "Monster Munch Escape",
+  "alternateName": "Random survivor picker minigame",
+  "url": "https://kimdoogi.github.io/ranking-game/monster-chase-en.html",
+  "image": "https://kimdoogi.github.io/ranking-game/assets/og-image.png",
+  "description": "A casual runner where you drop in names and the last survivor wins.",
+  "keywords": "random name picker, wheel of names, ladder game, roulette, decision maker",
+  "inLanguage": "en",
+  "genre": "Casual",
+  "gamePlatform": "Web browser",
+  "applicationCategory": "Game",
+  "operatingSystem": "Any (web browser)",
+  "author": { "@type": "Person", "name": "kimdoogi" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
+<link rel="stylesheet" href="monster-chase.css" />
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="utilBar">
+  <a href="index-en.html" title="Game list" aria-label="Back to the game list">🏠</a>
+  <button id="muteBtn" type="button" aria-pressed="false" aria-label="Mute" title="Mute">🔊</button>
+</div>
+
+<div id="hud">
+  <div class="pill">🏃 Left <span class="big" id="aliveCount">0</span></div>
+  <button id="boomBtn" type="button" aria-keyshortcuts="Space" aria-describedby="snackHelp">🍔 Throw snack ×3</button>
+</div>
+<div id="snackCombo" role="status" aria-live="polite" hidden></div>
+<span id="snackHelp" class="srOnly">During a match, press the button or the space key to throw a snack at the monster. Three uses per match.</span>
+
+<div id="countdown"></div>
+
+<div class="overlay" id="startScreen">
+  <div class="title">Monster Munch<br>Escape</div>
+  <div class="subtitle">Don't get eaten! The last survivor wins 🏆
+    <span class="tagline">A random name picker instead of a ladder game or roulette wheel — penalties and turn order</span>
+  </div>
+  <div class="control">
+    <label>Add players <span class="hint">type <b>name * 4</b> and hit Add · duplicates OK</span></label>
+    <div class="addRow">
+      <input id="nameInput" type="text" placeholder="e.g. Alex * 4" autocomplete="off" />
+      <button id="addBtn" class="addBtn">Add</button>
+    </div>
+    <div class="rosterWrap">
+      <div class="rosterList" id="rosterList"></div>
+      <div class="rosterFoot">
+        <span class="lobbyCount"><span id="countVal">0</span> players</span>
+        <button id="clearBtn" class="clearBtn">Clear all</button>
+      </div>
+    </div>
+    <div class="lobbyHint" id="lobbyHint"></div>
+  </div>
+  <button class="playBtn" id="startBtn">▶ Start!</button>
+</div>
+
+<div class="overlay hidden" id="winScreen">
+  <div class="crown">👑</div>
+  <div style="font-weight:800;color:#b8b8d8;letter-spacing:2px;">WINNER</div>
+  <div id="winName">-</div>
+  <ul class="rankList" id="rankList"></ul>
+  <button class="playBtn win" id="againBtn">🔄 Play again</button>
+</div>
+
+<script>
+window.T = {
+  mute: 'Mute',
+  unmute: 'Unmute',
+  snack1: '2 a.m. burger', snack1r: 'The diet starts tomorrow!',
+  snack2: 'Mint choco pizza', snack2r: 'That combo... seriously?',
+  snack3: '10x fire noodles', snack3r: 'HOT HOT HOT!!!',
+  snack4: 'Legendary drumstick', snack4r: 'Bones and all!',
+  snack5: 'Rainbow donut', snack5r: 'Sugar rush complete!',
+  snackCombo: n => `🔥 Snack combo ×${n}`,
+  snackGone: 'Gone in one bite!',
+  nom: 'NOM!',
+  firstNom: 'First bite!',
+  darkNom: 'A bite in the dark!',
+  suddenDeath: '⚡ SUDDEN DEATH!!',
+  pillarFall: 'Pillar collapse!',
+  finalTwo: 'FINAL TWO!',
+  deliveryFail: 'Delivery failed!',
+  closeCall: 'Close call!',
+  survived: 'Made it!',
+  doubleNom: 'DOUBLE NOM!!',
+  tripleNom: 'TRIPLE NOM!!!',
+  bonk: 'BONK~',
+  oops: 'Oops!',
+  monsterWoke: 'The monster woke up!',
+  throwSnack: n => `🍔 Throw snack ×${n}`,
+  delivering: 'Delivering…',
+  snackSoldOut: '🍽️ Snacks sold out',
+  seconds: n => `${n}s`,
+  snackCooldown: n => `${n}s until the next snack throw`,
+  delivered: 'Delivered!',
+  rosterEmpty: 'No players yet',
+  hintEmpty: 'Type a name and hit Add',
+  hintReady: n => `${n} players — ready to start!`,
+  hintNeedMore: n => `Needs at least ${n} players to start`,
+  numName: n => '#' + n
+};
+</script>
+<script src="monster-chase.js"></script>
+</body>
+</html>

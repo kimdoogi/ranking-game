@@ -8,17 +8,25 @@
 
   <!-- SEO -->
   <meta name="description" content="브라우저에서 바로 즐기는 무료 미니게임 아케이드. 먹보 괴물 대탈주, 장애물 대탈주 300, 밀어내기 배틀 로얄 등 미니게임 3종을 설치 없이 플레이하세요." />
-  <meta name="keywords" content="미니게임, 무료게임, 브라우저게임, HTML5 게임, 캐주얼 게임, 온라인 게임, 웹게임" />
+  <meta name="keywords" content="미니게임, 무료게임, 브라우저게임, HTML5 게임, 캐주얼 게임, 온라인 게임, 웹게임, 랜덤 뽑기, 사다리게임, 룰렛" />
   <meta name="author" content="kimdoogi" />
   <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#0a0a16" />
   <link rel="canonical" href="https://kimdoogi.github.io/ranking-game/" />
+  <link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/" />
+  <link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/index-en.html" />
+  <link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/index-zh.html" />
+  <link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/index-ja.html" />
+  <link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/" />
   <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎮</text></svg>' />
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="미니게임 아케이드" />
   <meta property="og:locale" content="ko_KR" />
+  <meta property="og:locale:alternate" content="en_US" />
+  <meta property="og:locale:alternate" content="zh_CN" />
+  <meta property="og:locale:alternate" content="ja_JP" />
   <meta property="og:title" content="미니게임 아케이드 🎮" />
   <meta property="og:description" content="브라우저에서 바로 즐기는 무료 미니게임 3종. 설치 없이 지금 플레이!" />
   <meta property="og:url" content="https://kimdoogi.github.io/ranking-game/" />
@@ -49,68 +57,7 @@
   }
   </script>
 
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    body {
-      min-height: 100vh;
-      background: radial-gradient(ellipse at 50% -10%, #1a1440, #0a0a16 60%);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 48px 20px 60px;
-    }
-    h1 {
-      font-size: clamp(30px, 8vw, 48px);
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      text-align: center;
-      background: linear-gradient(135deg, #ff2d95, #ff8a3d 45%, #ffd23f);
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-    }
-    .sub { margin-top: 10px; color: #9aa0c0; font-size: 15px; text-align: center; }
-    .grid {
-      margin-top: 40px;
-      width: 100%;
-      max-width: 480px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    .card {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 18px 20px;
-      border-radius: 18px;
-      background: rgba(20, 20, 40, .55);
-      backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, .08);
-      text-decoration: none;
-      color: #fff;
-      transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
-    }
-    .card:hover, .card:active {
-      transform: translateY(-3px);
-      border-color: rgba(255, 138, 61, .5);
-      box-shadow: 0 12px 30px rgba(255, 77, 109, .18);
-    }
-    .emoji {
-      font-size: 40px;
-      width: 62px; height: 62px;
-      flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
-      border-radius: 14px;
-      background: linear-gradient(135deg, rgba(255,77,109,.22), rgba(123,91,255,.22));
-    }
-    .meta { flex: 1; min-width: 0; }
-    .name { font-size: 19px; font-weight: 700; }
-    .desc { margin-top: 4px; font-size: 13px; color: #9aa0c0; }
-    .arrow { color: #ffd23f; font-size: 22px; flex-shrink: 0; }
-    footer { margin-top: 44px; color: #565c7e; font-size: 12px; }
-    footer a { color: #7b8bff; text-decoration: none; }
-  </style>
+  <link rel="stylesheet" href="index.css" />
 </head>
 <body>
   <h1>미니게임 아케이드 🎮</h1>
@@ -143,7 +90,14 @@
       </div>
       <div class="arrow">›</div>
     </a>
+
   </div>
+
+  <p class="langLinks">다른 언어:
+    <a href="index-en.html" hreflang="en">English</a> ·
+    <a href="index-zh.html" hreflang="zh-Hans">中文</a> ·
+    <a href="index-ja.html" hreflang="ja">日本語</a>
+  </p>
 
   <footer>Made with 🕹️ · <a href="https://github.com/kimdoogi/ranking-game">GitHub</a></footer>
 </body>

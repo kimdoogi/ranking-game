@@ -1,27 +1,180 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://kimdoogi.github.io/ranking-game/</loc>
-    <lastmod>2026-07-13</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/index-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/index-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/index-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/"/>
+  </url>
+  <url>
+    <loc>https://kimdoogi.github.io/ranking-game/index-en.html</loc>
+    <lastmod>2026-08-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/index-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/index-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/index-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/"/>
+  </url>
+  <url>
+    <loc>https://kimdoogi.github.io/ranking-game/index-zh.html</loc>
+    <lastmod>2026-08-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/index-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/index-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/index-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/"/>
+  </url>
+  <url>
+    <loc>https://kimdoogi.github.io/ranking-game/index-ja.html</loc>
+    <lastmod>2026-08-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/index-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/index-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/index-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/"/>
   </url>
   <url>
     <loc>https://kimdoogi.github.io/ranking-game/monster-chase.html</loc>
-    <lastmod>2026-07-13</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/monster-chase.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/monster-chase-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/monster-chase-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/monster-chase-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/monster-chase.html"/>
+  </url>
+  <url>
+    <loc>https://kimdoogi.github.io/ranking-game/monster-chase-en.html</loc>
+    <lastmod>2026-08-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/monster-chase.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/monster-chase-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/monster-chase-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/monster-chase-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/monster-chase.html"/>
+  </url>
+  <url>
+    <loc>https://kimdoogi.github.io/ranking-game/monster-chase-zh.html</loc>
+    <lastmod>2026-08-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/monster-chase.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/monster-chase-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/monster-chase-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/monster-chase-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/monster-chase.html"/>
+  </url>
+  <url>
+    <loc>https://kimdoogi.github.io/ranking-game/monster-chase-ja.html</loc>
+    <lastmod>2026-08-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/monster-chase.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/monster-chase-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/monster-chase-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/monster-chase-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/monster-chase.html"/>
   </url>
   <url>
     <loc>https://kimdoogi.github.io/ranking-game/obstacle-run.html</loc>
-    <lastmod>2026-07-13</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/obstacle-run.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/obstacle-run-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/obstacle-run-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/obstacle-run-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/obstacle-run.html"/>
+  </url>
+  <url>
+    <loc>https://kimdoogi.github.io/ranking-game/obstacle-run-en.html</loc>
+    <lastmod>2026-08-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/obstacle-run.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/obstacle-run-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/obstacle-run-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/obstacle-run-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/obstacle-run.html"/>
+  </url>
+  <url>
+    <loc>https://kimdoogi.github.io/ranking-game/obstacle-run-zh.html</loc>
+    <lastmod>2026-08-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/obstacle-run.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/obstacle-run-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/obstacle-run-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/obstacle-run-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/obstacle-run.html"/>
+  </url>
+  <url>
+    <loc>https://kimdoogi.github.io/ranking-game/obstacle-run-ja.html</loc>
+    <lastmod>2026-08-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/obstacle-run.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/obstacle-run-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/obstacle-run-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/obstacle-run-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/obstacle-run.html"/>
   </url>
   <url>
     <loc>https://kimdoogi.github.io/ranking-game/push-royale.html</loc>
-    <lastmod>2026-07-13</lastmod>
+    <lastmod>2026-08-11</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/push-royale.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/push-royale-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/push-royale-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/push-royale-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/push-royale.html"/>
+  </url>
+  <url>
+    <loc>https://kimdoogi.github.io/ranking-game/push-royale-en.html</loc>
+    <lastmod>2026-08-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/push-royale.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/push-royale-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/push-royale-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/push-royale-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/push-royale.html"/>
+  </url>
+  <url>
+    <loc>https://kimdoogi.github.io/ranking-game/push-royale-zh.html</loc>
+    <lastmod>2026-08-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/push-royale.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/push-royale-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/push-royale-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/push-royale-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/push-royale.html"/>
+  </url>
+  <url>
+    <loc>https://kimdoogi.github.io/ranking-game/push-royale-ja.html</loc>
+    <lastmod>2026-08-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/push-royale.html"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/push-royale-en.html"/>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/push-royale-zh.html"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/push-royale-ja.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/push-royale.html"/>
   </url>
 </urlset>

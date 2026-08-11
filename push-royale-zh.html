@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>推挤大逃杀 🏆 随机点名抽签 — 替代阶梯抽签和轮盘 | 免费网页小游戏</title>
+
+<!-- SEO -->
+<meta name="description" content="输入名字，一棒挥出去，最后站着的人获胜。可以拿来代替阶梯抽签或幸运轮盘：决定谁买单、谁先来、谁接受惩罚。免安装，浏览器里免费玩。" />
+<meta name="keywords" content="阶梯抽签, 轮盘, 幸运轮盘, 随机点名, 抽签工具, 转盘抽奖, 随机选人, 推挤大逃杀, 大逃杀, 小游戏, 免费游戏, 网页游戏, 休闲游戏" />
+<meta name="author" content="kimdoogi" />
+<meta name="robots" content="index, follow" />
+<meta name="theme-color" content="#0a0a16" />
+<link rel="canonical" href="https://kimdoogi.github.io/ranking-game/push-royale-zh.html" />
+<link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/push-royale.html" />
+<link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/push-royale-en.html" />
+<link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/push-royale-zh.html" />
+<link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/push-royale-ja.html" />
+<link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/push-royale.html" />
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🏆</text></svg>' />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="小游戏街机厅" />
+<meta property="og:locale" content="zh_CN" />
+<meta property="og:locale:alternate" content="ko_KR" />
+<meta property="og:locale:alternate" content="en_US" />
+<meta property="og:locale:alternate" content="ja_JP" />
+<meta property="og:title" content="推挤大逃杀 🏆 随机点名抽签" />
+<meta property="og:description" content="输入名字，一棒挥出去，最后站着的人获胜！代替阶梯抽签和轮盘，免费即玩。" />
+<meta property="og:url" content="https://kimdoogi.github.io/ranking-game/push-royale-zh.html" />
+<meta property="og:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="推挤大逃杀 🏆 随机点名抽签" />
+<meta name="twitter:description" content="输入名字，一棒挥出去，最后站着的人获胜！代替阶梯抽签和轮盘，免费即玩。" />
+<meta name="twitter:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+
+<!-- Structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "推挤大逃杀",
+  "alternateName": "随机点名抽签 — 阶梯抽签和轮盘的替代工具",
+  "url": "https://kimdoogi.github.io/ranking-game/push-royale-zh.html",
+  "image": "https://kimdoogi.github.io/ranking-game/assets/og-image.png",
+  "description": "输入名字，最后站着的人获胜的随机抽签小游戏。可以代替阶梯抽签或幸运轮盘，决定谁买单、谁先来、谁接受惩罚。",
+  "keywords": "阶梯抽签, 轮盘, 幸运轮盘, 随机点名, 抽签工具, 转盘抽奖, 随机选人",
+  "inLanguage": "zh-Hans",
+  "genre": "Casual",
+  "gamePlatform": "Web browser",
+  "applicationCategory": "Game",
+  "operatingSystem": "Any (web browser)",
+  "author": { "@type": "Person", "name": "kimdoogi" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
+<link rel="stylesheet" href="push-royale.css" />
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="utilBar">
+  <a href="index-zh.html" title="游戏列表" aria-label="返回游戏列表">🏠</a>
+  <button id="muteBtn" type="button" aria-pressed="false" aria-label="静音" title="静音">🔊</button>
+</div>
+
+<div id="hud">
+  <div class="pill">🎯 剩余 <span class="big" id="aliveCount">0</span></div>
+  <button id="shakeBtn">💥 摇一摇！</button>
+</div>
+
+<div id="countdown"></div>
+
+<div class="overlay" id="startScreen">
+  <div class="title">推挤<br>大逃杀</div>
+  <div class="subtitle">挥棒把对手全部打飞，最后一人获胜 🏆
+    <span class="tagline">代替阶梯抽签和轮盘的随机点名工具 — 定惩罚、定顺序、定谁买单</span>
+  </div>
+  <div class="control">
+    <label>添加参与者 <span class="hint">按 <b>名字 * 4</b> 输入后点添加 · 可重复</span></label>
+    <div class="addRow">
+      <input id="nameInput" type="text" placeholder="例：小明 * 4" autocomplete="off" />
+      <button id="addBtn" class="addBtn">添加</button>
+    </div>
+    <div class="rosterWrap">
+      <div class="rosterList" id="rosterList"></div>
+      <div class="rosterFoot">
+        <span class="lobbyCount"><span id="countVal">0</span> 人</span>
+        <button id="clearBtn" class="clearBtn">全部清空</button>
+      </div>
+    </div>
+    <div class="lobbyHint" id="lobbyHint"></div>
+  </div>
+  <button class="playBtn" id="startBtn">▶ 开始！</button>
+</div>
+
+<div class="overlay hidden" id="winScreen">
+  <div class="crown">👑</div>
+  <div style="font-weight:800;color:#b8b8d8;letter-spacing:2px;">WINNER</div>
+  <div id="winName">-</div>
+  <ul class="rankList" id="rankList"></ul>
+  <button class="playBtn win" id="againBtn">🔄 再来一局</button>
+  <button class="shareBtn" id="shareBtn" type="button">📸 分享结果卡</button>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+window.T = {
+  shareUrl: 'https://kimdoogi.github.io/ranking-game/push-royale-zh.html',
+  gameName: '推挤大逃杀',
+  mute: '静音',
+  unmute: '取消静音',
+  clang: '铛！',
+  homer: '全垒打！',
+  out: 'OUT!',
+  doubleOut: '双杀！！',
+  monsterOut: '三杀！！！',
+  suddenDeath: '⚡ 突然死亡！',
+  finalRound: '决赛！',
+  save: '救回来了！',
+  cardTitle: '🏆 推挤大逃杀',
+  cardPlayers: n => `${n} 人参加`,
+  cardLast: '💀 倒数第一',
+  cardCta: '免安装，马上开玩 ▶',
+  shareCaption: (win, loser) => `👑 冠军 ${win}` + (loser ? ` · 💀 垫底 ${loser}` : ''),
+  cardBuilding: '正在生成结果卡…',
+  cardFailed: '结果卡生成失败 😢',
+  cardCopied: '结果卡已复制！粘贴到聊天里吧 📋',
+  cardSaved: '结果卡已保存 💾',
+  shareFailed: '分享失败 😢',
+  rosterEmpty: '还没有参与者',
+  hintEmpty: '输入名字后点添加',
+  hintReady: n => `${n} 人参加 — 可以开始了！`,
+  hintNeedMore: n => `至少要 ${n} 人才能开始`,
+  numName: n => n + ' 号'
+};
+</script>
+<script src="push-royale.js"></script>
+</body>
+</html>
