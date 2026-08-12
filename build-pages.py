@@ -37,6 +37,21 @@ def alt_locales(lang, indent=''):
                      for lg in LANGS if lg != lang)
 
 
+GA_ID = 'G-TNX16BV3PS'
+GA_TAG = """<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=%s"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', '%s');
+</script>""" % (GA_ID, GA_ID)
+
+
+def ga_tag(indent=''):
+    return '\n'.join(indent + ln if ln else ln for ln in GA_TAG.split('\n'))
+
 # ---------------------------------------------------------------- shared copy
 SITE_NAME = {
     'ko': '미니게임 아케이드',
@@ -645,6 +660,7 @@ T = {'monster-chase': T_MONSTER, 'obstacle-run': T_OBSTACLE, 'push-royale': T_PU
 GAME_HEAD = Template("""<!DOCTYPE html>
 <html lang="$htmlLang">
 <head>
+$gaTag
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>$title</title>
@@ -740,7 +756,7 @@ def game_page(slug, lang):
     r = dict(ROSTER[lang])
     r['addHint'] = m.get('addHint', r['addHint'])
     head = GAME_HEAD.substitute(
-        htmlLang=HTML_LANG[lang], ogLocale=OG_LOCALE[lang], schemaLang=SCHEMA_LANG[lang],
+        gaTag=ga_tag(), htmlLang=HTML_LANG[lang], ogLocale=OG_LOCALE[lang], schemaLang=SCHEMA_LANG[lang],
         base=BASE, url=page_url(slug, lang), slug=slug, emoji=EMOJI[slug],
         siteName=SITE_NAME[lang], hreflang=hreflang_block(slug), altLocales=alt_locales(lang),
         title=m['title'], desc=m['desc'], keywords=m['keywords'],
@@ -804,6 +820,7 @@ window.T = {{
 INDEX = Template("""<!DOCTYPE html>
 <html lang="$htmlLang">
 <head>
+$gaTag
   <meta name="google-site-verification" content="D44tLBWbmoVG9Eu1X8DfGF1uaaMVOPQJl4oe-grzMiw" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
@@ -891,7 +908,7 @@ def index_page(lang):
     parts = ',\n'.join(f'      {{ "@type": "VideoGame", "name": "{META[s][lang]["name"]}", '
                        f'"url": "{page_url(s, lang)}" }}' for s in GAMES)
     return INDEX.substitute(
-        htmlLang=HTML_LANG[lang], ogLocale=OG_LOCALE[lang], schemaLang=SCHEMA_LANG[lang],
+        gaTag=ga_tag('  '), htmlLang=HTML_LANG[lang], ogLocale=OG_LOCALE[lang], schemaLang=SCHEMA_LANG[lang],
         base=BASE, url=page_url('', lang), siteName=SITE_NAME[lang],
         hreflang=hreflang_block('', '  '), altLocales=alt_locales(lang, '  '),
         title=m['title'], desc=m['desc'], keywords=m['keywords'], ogTitle=m['ogTitle'],
