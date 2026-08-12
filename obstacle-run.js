@@ -1394,7 +1394,12 @@
     try { localStorage.setItem('minigame_roster', JSON.stringify(entries)); } catch (e) {}
   }
   addBtn.onclick = () => { if (addEntry(nameInput.value)) { nameInput.value = ''; nameInput.focus(); } };
-  nameInput.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); addBtn.onclick(); } });
+  // keyCode 229 covers Safari, which reports isComposing=false while an IME is still composing.
+  nameInput.addEventListener('keydown', ev => {
+    if (ev.key !== 'Enter' || ev.isComposing || ev.keyCode === 229) return;   // let the IME commit first
+    ev.preventDefault();
+    addBtn.onclick();
+  });
   clearBtn.onclick = () => { entries = []; renderRoster(); };
   // quick-add: drop in N bots at once
   document.querySelectorAll('.preset').forEach(b => b.onclick = () => addEntry(T.botName + ' * ' + (+b.dataset.n)));
