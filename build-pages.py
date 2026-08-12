@@ -822,6 +822,7 @@ INDEX = Template("""<!DOCTYPE html>
 <head>
 $gaTag
   <meta name="google-site-verification" content="D44tLBWbmoVG9Eu1X8DfGF1uaaMVOPQJl4oe-grzMiw" />
+  <meta name="naver-site-verification" content="004f6f44faf5d8536fa5e666773cca57ed9753cd" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>$title</title>
