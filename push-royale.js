@@ -16,11 +16,22 @@
   const SW_WIND = 0.15;              // windup (telegraph — readable before the hit lands)
   const SW_HIT  = 0.11;              // active arc: the only window that can connect
   const SW_REC  = 0.20;              // follow-through
-  const SW_DUR  = SW_WIND + SW_HIT + SW_REC;
   const BAT_LEN = 2.15;              // reach past the body, in player radii
   const BAT_ARC = 2.5;               // radians swept during the active window
   const BAT_CONE = 0.6;              // hit tolerance off the bat line (rad)
   const KNOCK_T = 0.3;               // launched: no steering, no speed cap
+
+  // ---------- Special (필살기) ----------
+  // Gauge fills only from bat contact — swinging at air earns nothing.
+  const SP_DEAL = 0.13;              // gauge gained for landing a hit
+  const SP_TAKE = 0.06;              // gauge gained for taking one
+  const SP_HIT  = 0.30;              // active window of a special (long: it's a full 360 spin)
+  // A spin sends several people to the rim at once, and only 2 can teeter there —
+  // the overflow falls straight out. Kept modest so the match still reaches sudden death.
+  const SP_REACH = 1.45;             // reach multiplier while spinning
+  const SP_POWER = 1.45;             // launch multiplier
+  const swHit = p => (p.special ? SP_HIT : SW_HIT);
+  const swDur = p => SW_WIND + swHit(p) + SW_REC;
 
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -136,6 +147,7 @@
   let banner = null, lastBannerT = 0;      // single center announcement
   let koChainIdx = 0, koChainT = -9;
   let fallTimes = [];            // for DOUBLE/MONSTER KO
+  let spUses = 0;                // specials fired this match (tuning readout)
   let hbT = 0;                   // heartbeat timer
   let cam = { x: 0, y: 0, zoom: 1, tx: 0, ty: 0, tz: 1 };
 
@@ -171,6 +183,7 @@
     final2T = -1; faceOffDone = false; finalSlowmoDone = false; prevAliveNF = 99;
     freezeT = 0; impactFX = null; slowmo = { ts: 1, t: 0 }; timeScale = 1;
     flashT = 0; banner = null; koChainIdx = 0; koChainT = -9; fallTimes = []; hbT = 0;
+    spUses = 0;
 
     const cx = W / 2, cy = H * 0.54;
     const R = Math.min(W * 0.42, H * 0.55);
@@ -198,6 +211,7 @@
         phase: rand(0, 6.28), squash: 0, lookX: 0, lookY: 1,
         // bat
         swingT: -1, swingCd: rand(0.6, 1.7), aim: ang + Math.PI, batSide: 1, hitIds: [],
+        sp: 0, special: false,
         knockT: 0, batHitT: -9, rimGrab: true,
         // drama
         grudge: -1, grudgeT: 0,
@@ -241,35 +255,51 @@
   // ---------- Bat swings ----------
   // Phones get a big radius on a small arena, so cap reach against the arena too —
   // otherwise a bat covers half the ring and everyone is permanently in range.
-  function batReach(p) { return Math.min(p.r * (1 + BAT_LEN), arena.R * 0.30); }
+  // A special sweeps wider, but the arena cap still binds — applying the multiplier
+  // on top of the cap let a phone-sized spin cover 44% of the ring.
+  function batReach(p, special) {
+    return special ? Math.min(p.r * (1 + BAT_LEN) * SP_REACH, arena.R * 0.36)
+                   : Math.min(p.r * (1 + BAT_LEN), arena.R * 0.30);
+  }
 
   let lastSwoosh = 0;
-  function startSwing(p) {
+  function startSwing(p, special) {
     p.swingT = 0;
+    // p.special is only ever read during an active swing, so setting it here is the
+    // only reset needed — every other swingT = -1 path can leave the stale value.
+    p.special = !!special;
     p.hitIds.length = 0;
     p.batSide = Math.cos(p.aim) >= 0 ? 1 : -1;      // arc reads as travelling toward the target
     p.vx += Math.cos(p.aim) * 0.5 * arena.scale;    // step into the pitch
     p.vy += Math.sin(p.aim) * 0.5 * arena.scale;
     const now = performance.now();
-    if (now - lastSwoosh > 70) { lastSwoosh = now; beep(880, 0.05, 'sine', 0.035, 300); }
+    if (special) {
+      p.sp = 0; spUses++;
+      addFloater(p.x, groundY(p.y) - 52, T.special, '#ffd23f', true);
+      beep(220, 0.16, 'sawtooth', 0.16, 900);
+      beep(1200, 0.10, 'square', 0.08);
+      addTrauma(0.25);
+    } else if (now - lastSwoosh > 70) { lastSwoosh = now; beep(880, 0.05, 'sine', 0.035, 300); }
   }
 
   // Only the active middle window of a swing can connect; each swing hits a target once.
   function resolveSwings() {
     for (const a of players) {
       if (!a.alive || a.falling || a.swingT < SW_WIND) continue;
-      const prog = (a.swingT - SW_WIND) / SW_HIT;
+      const prog = (a.swingT - SW_WIND) / swHit(a);
       if (prog > 1) continue;
-      const batAng = a.aim + (prog - 0.5) * BAT_ARC * a.batSide;
-      const reach = batReach(a);
+      const batAng = a.aim + (prog - 0.5) * (a.special ? Math.PI * 2 : BAT_ARC) * a.batSide;
+      const reach = batReach(a, a.special);
       for (const b of players) {
         if (b === a || !b.alive || b.falling) continue;
         if (a.hitIds.includes(b.id)) continue;
         const dx = b.x - a.x, dy = b.y - a.y;
         const d = Math.hypot(dx, dy) || 1;
         if (d > reach + b.r) continue;
-        const rel = Math.atan2(dy, dx) - batAng;
-        if (Math.abs(Math.atan2(Math.sin(rel), Math.cos(rel))) > BAT_CONE) continue;
+        if (!a.special) {   // a spin sweeps the whole circle — no cone test
+          const rel = Math.atan2(dy, dx) - batAng;
+          if (Math.abs(Math.atan2(Math.sin(rel), Math.cos(rel))) > BAT_CONE) continue;
+        }
         a.hitIds.push(b.id);
         batHit(a, b, dx / d, dy / d, batAng);
       }
@@ -279,14 +309,18 @@
   function batHit(a, b, nx, ny, batAng) {
     // power ramps with the match so the opening isn't a bloodbath
     const pw = suddenDeath ? 1.2 : lerp(0.40, 0.95, gameT / 65);
+    const sw = a.special ? SP_POWER : 1;
+    // gauge: swinging earns nothing, contact does. A special can't refill itself.
+    if (!a.special) a.sp = Math.min(1, a.sp + SP_DEAL);
+    b.sp = Math.min(1, b.sp + SP_TAKE);
     // launch away from the batter, biased along the bat tip's travel
     const tx = -Math.sin(batAng) * a.batSide, ty = Math.cos(batAng) * a.batSide;
     let lx = nx + tx * 0.45, ly = ny + ty * 0.45;
     const ll = Math.hypot(lx, ly) || 1; lx /= ll; ly /= ll;
 
-    const speed = rand(8, 11) * arena.scale * pw;
+    const speed = rand(8, 11) * arena.scale * pw * sw;
     b.vx = lx * speed; b.vy = ly * speed;
-    b.vz = Math.max(b.vz, rand(220, 330) * pw);
+    b.vz = Math.max(b.vz, rand(220, 330) * pw * (a.special ? 1.25 : 1));
     b.knockT = KNOCK_T;
     b.batHitT = gameT;
     b.squash = 0.5;
@@ -297,15 +331,15 @@
     a.squash = Math.max(a.squash, 0.18);
 
     const hx = b.x - nx * b.r * 0.6, hy = groundY(b.y - ny * b.r * 0.6) - b.z - b.r * 0.9;
-    spawnHitParticles(hx, hy, '#ffd23f', 6 + pw * 4);
+    spawnHitParticles(hx, hy, '#ffd23f', 6 + pw * 4 * sw);
     spawnHitParticles(hx, hy, '#fff', 4);
     lastCollT = gameT;
-    addTrauma(0.18 + 0.22 * pw);
+    addTrauma((0.18 + 0.22 * pw) * sw);
     beep(150, 0.09, 'square', 0.16 * pw, 55);       // crack
     beep(1500, 0.035, 'square', 0.10 * pw);
 
     const now = performance.now();
-    if (pw > 0.9 && now - lastFreeze > 380 && timeScale > 0.999) {
+    if ((pw > 0.9 || a.special) && now - lastFreeze > 380 && timeScale > 0.999) {
       lastFreeze = now;
       freezeT = 0.05;
       impactFX = { x: hx, y: hy, nx: lx, ny: ly, t: 0.09 };
@@ -489,7 +523,7 @@
       if (p.knockT > 0) p.knockT -= dt;
       if (p.swingT >= 0) {
         p.swingT += dt;
-        if (p.swingT >= SW_DUR) { p.swingT = -1; p.swingCd = rand(1.2, 2.4) / cdRate; }
+        if (p.swingT >= swDur(p)) { p.swingT = -1; p.swingCd = rand(1.2, 2.4) / cdRate; }
       } else if (p.swingCd > 0) p.swingCd -= dt;
       // a hit interrupts the swing — you can't bat while flying
       if (p.knockT > 0 && p.swingT >= 0) { p.swingT = -1; p.swingCd = Math.max(p.swingCd, 0.35); }
@@ -523,8 +557,9 @@
           p.aim = Math.atan2(dy + near.vy * lead, dx + near.vx * lead);
         }
         // swing when the target is inside reach and the bat is ready
-        if (p.swingT < 0 && p.swingCd <= 0 && d < batReach(p) * 0.95 + near.r * 0.7) {
-          startSwing(p);
+        if (p.swingT < 0 && p.swingCd <= 0) {
+          const ready = p.sp >= 1;
+          if (d < batReach(p, ready) * 0.95 + near.r * 0.7) startSwing(p, ready);
         }
       }
       if (p.knockT <= 0) {
@@ -667,7 +702,7 @@
 
     trauma *= Math.pow(0.9, fm);
     if (aliveEl._v !== aliveNF) { aliveEl._v = aliveNF; aliveEl.textContent = aliveNF; }
-    window.__st = { t: Math.round(gameT * 10) / 10, aliveNF, state, sd: suddenDeath,
+    window.__st = { t: Math.round(gameT * 10) / 10, aliveNF, state, sd: suddenDeath, spUses,
       W, H, cx: Math.round(arena.cx), R0: Math.round(arena.R0), iw: window.innerWidth };
   }
 
@@ -747,12 +782,14 @@
       const t = p.swingT;
       if (t < SW_WIND) {
         bth = lerp(BAT_REST, BAT_WIND, Math.pow(t / SW_WIND, 0.6));
-      } else if (t < SW_WIND + SW_HIT) {
-        const k = (t - SW_WIND) / SW_HIT;
-        bth = lerp(BAT_WIND, BAT_END, k);
+      } else if (t < SW_WIND + swHit(p)) {
+        const k = (t - SW_WIND) / swHit(p);
+        // a special adds a whole extra turn; landing on BAT_END + 2π keeps the
+        // follow-through continuous (angles are only ever used through sin/cos)
+        bth = lerp(BAT_WIND, p.special ? BAT_END + Math.PI * 2 : BAT_END, k);
         arcA = BAT_WIND; arcB = bth;
       } else {
-        const k = (t - SW_WIND - SW_HIT) / SW_REC;
+        const k = (t - SW_WIND - swHit(p)) / SW_REC;
         bth = lerp(BAT_END, BAT_REST, k * k);
         if (k < 0.4) { arcA = lerp(BAT_WIND, BAT_END, 0.5); arcB = bth; }
       }
@@ -762,7 +799,7 @@
     bth *= bs;
     const bux = Math.sin(bth), buy = Math.cos(bth);
     const gripD = armL * 0.62;
-    const batL = 25 * s * (batReach(p) / (p.r * (1 + BAT_LEN)));   // drawn length matches real reach
+    const batL = 25 * s * (batReach(p, p.special && p.swingT >= 0) / (p.r * (1 + BAT_LEN)));   // drawn length matches real reach
     // hands sit out to the cocked side, so the resting bat runs past the head instead of across the face
     const anchorX = -bs * 4.6 * s;
     const hx = anchorX + bux * gripD, hy = shY + buy * gripD;
@@ -841,6 +878,19 @@
     ctx.fillText(p.name, sx + 1, sy - 30 * s + 1);
     ctx.fillStyle = '#fff';
     ctx.fillText(p.name, sx, sy - 30 * s);
+
+    // special gauge — tiny bar over the name, gold + blinking once it's full
+    if (!p.falling && p.sp > 0.02) {
+      const bw = p.r * 1.5, bh = Math.max(3, 1.7 * s);
+      const bx = sx - bw / 2, by = sy - 42 * s;
+      const full = p.sp >= 1;
+      ctx.fillStyle = 'rgba(0,0,0,.5)';
+      ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+      ctx.fillStyle = full ? (Math.sin(gameT * 16) > 0 ? '#fff' : '#ffd23f') : '#3fd0ff';
+      if (full) { ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 10; }
+      ctx.fillRect(bx, by, bw * Math.min(1, p.sp), bh);
+      ctx.shadowBlur = 0;
+    }
     ctx.globalAlpha = 1;
   }
 
