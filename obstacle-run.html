@@ -11,7 +11,7 @@
   gtag('config', 'G-TNX16BV3PS');
 </script>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>장애물 대탈주 300 🏁 최대 300명 이름 레이스 뽑기 | 무료 브라우저 미니게임</title>
 
 <!-- SEO -->
@@ -36,7 +36,7 @@
 <meta property="og:locale:alternate" content="zh_CN" />
 <meta property="og:locale:alternate" content="ja_JP" />
 <meta property="og:title" content="장애물 대탈주 300 🏁" />
-<meta property="og:description" content="장애물을 넘어 300m 완주에 도전! 지금 바로 무료로 플레이." />
+<meta property="og:description" content="로켓, 방패, 바나나로 끝까지 뒤집히는 자동 이름 레이스! 최대 300명까지 무료로 플레이." />
 <meta property="og:url" content="https://kimdoogi.github.io/ranking-game/obstacle-run.html" />
 <meta property="og:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
 <meta property="og:image:width" content="1200" />
@@ -45,7 +45,7 @@
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="장애물 대탈주 300 🏁" />
-<meta name="twitter:description" content="장애물을 넘어 300m 완주에 도전! 지금 바로 무료로 플레이." />
+<meta name="twitter:description" content="로켓, 방패, 바나나로 끝까지 뒤집히는 자동 이름 레이스! 최대 300명까지 무료로 플레이." />
 <meta name="twitter:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
 
 <!-- Structured data -->
@@ -69,7 +69,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="obstacle-run.css" />
+<link rel="stylesheet" href="obstacle-run.css?v=4515249297" />
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -79,20 +79,23 @@
   <button id="muteBtn" type="button" aria-pressed="false" aria-label="소리 끄기" title="소리 끄기">🔊</button>
 </div>
 
-<div id="hud">
+<div id="hud" hidden>
   <div class="pill">🏁 완주 <span class="big" id="finCount">0</span><span id="totCount" style="opacity:.6">/300</span></div>
-  <button id="boomBtn">🍌 바나나 비 ×3</button>
+  <div class="pill raceClock"><span id="raceDistance"></span><b id="raceClock">0.0s</b></div>
 </div>
 <div id="ffChip">⏩ ×3 빨리감기</div>
-<div id="ticker"></div>
+<div id="ticker" role="log" aria-live="polite" aria-relevant="additions"></div>
+<section id="raceBoard" hidden><div class="raceBoardTitle"><b>LIVE</b><span id="raceEvent"></span></div>
+<div class="courseMeter"><div id="courseProgress"></div></div><div id="raceLeaders"></div></section>
 
 <div id="countdown"></div>
 
 <div class="overlay" id="startScreen">
   <div class="title">장애물<br>대탈주</div>
-  <div class="subtitle">해머, 크러셔, 진흙탕을 뚫고 결승선까지! 최대 300명 🏁
+  <div class="subtitle">아이템 먹고, 날아오르고, 끝에서 뒤집는 자동 레이스 🏁
     <span class="tagline">사다리게임·룰렛 대신 쓰는 순위 뽑기 — 순서·벌칙·팀 나누기</span>
   </div>
+<p class="arenaIntro">🚀 로켓 · 🛡️ 방패 · 🍌 바나나 · 🌀 도약<br>아이템부터 역전까지 자동! 이름만 넣고 응원하세요.</p>
   <div class="control">
     <label>참가자 추가 <span class="hint"><b>이름 * 4</b> 처럼 입력하고 추가하기 · 최대 300명</span></label>
     <div class="addRow">
@@ -115,18 +118,29 @@
     <div class="lobbyHint" id="lobbyHint"></div>
   </div>
   <button class="playBtn" id="startBtn">▶ 출발!</button>
+<button class="demoBtn" id="demoBtn" type="button">12명으로 구경하기</button>
 </div>
 
 <div class="overlay hidden" id="winScreen">
   <div class="crown">🏆</div>
   <div style="font-weight:800;color:#b8b8d8;letter-spacing:2px;">WINNER</div>
   <div id="winName">-</div>
+  <p id="raceSummary"></p>
   <ul class="rankList" id="rankList"></ul>
   <button class="playBtn win" id="againBtn">🔄 다시하기</button>
 </div>
 
 <script>
 window.T = {
+  autoRace: '자동 레이스 · 끝까지 모른다!',
+  itemGate: '아이템 게이트',
+  shieldSave: '방패 방어!',
+  turboFever: '⚡ 전원 과속 타임!',
+  front: '선두',
+  nextEvent: n => `다음 돌발 이벤트 ${n}초`,
+  distanceLeft: n => `결승까지 ${n}m`,
+  raceRecap: n => `선두 교체 ${n}회`,
+  finishGap: n => `1·2위 차이 ${n}초`,
   mute: '소리 끄기',
   unmute: '소리 켜기',
   slip: '미끌!',
@@ -143,7 +157,6 @@ window.T = {
   reviewing: '판독중…',
   racersStart: n => `${n}명 출발!`,
   botName: '봇',
-  bananaRain: n => `🍌 바나나 비 ×${n}`,
   bananaRainBanner: '바나나 비!!',
   rosterEmpty: '아직 참가자가 없어요',
   hintEmpty: '이름을 입력하고 추가하기를 누르세요',
@@ -152,6 +165,7 @@ window.T = {
   numName: n => n + '번'
 };
 </script>
-<script src="obstacle-run.js"></script>
+<script src="obstacle-run-fx.js?v=53a2e86d11"></script>
+<script src="obstacle-run.js?v=19cf27985e"></script>
 </body>
 </html>

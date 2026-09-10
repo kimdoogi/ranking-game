@@ -19,8 +19,8 @@ GAMES = ['monster-chase', 'obstacle-run', 'push-royale']
 EMOJI = {'': '🎮', 'monster-chase': '👾', 'obstacle-run': '🏁', 'push-royale': '🏆'}
 
 
-def royale_asset(filename):
-    # The result markup and the two canvas scripts must update together, even with cached assets.
+def game_asset(filename):
+    # Keep each game and its localized markup on the same asset version.
     digest = sha256(Path(__file__).with_name(filename).read_bytes()).hexdigest()[:10]
     return f'{filename}?v={digest}'
 
@@ -138,8 +138,8 @@ META = {
             titleHtml='먹보 괴물<br>대탈주',
             subtitle='먹히지 마라! 마지막 생존자가 우승 🏆',
             tagline='사다리게임·룰렛 대신 쓰는 이름 뽑기 — 벌칙·순서 정하기',
-            hud='🏃 남은 인원', boom='🍔 야식 투척 ×3',
-            snackHelp='경기 중 버튼이나 스페이스 키를 누르면 괴물에게 야식을 던집니다. 한 경기에서 3번 사용할 수 있습니다.'),
+            playHint='🍔 야식이 떨어지면 추격전도 반전!<br>자동 야식 배달과 최후의 추격전, 끝까지 살아남을 이름은?', demo='12명으로 구경하기',
+            hud='🏃 남은 인원'),
         'en': dict(
             name='Monster Munch Escape',
             title='Monster Munch Escape 👾 Random Survivor Picker — Ladder Game & Roulette Alternative | Free Browser Game',
@@ -153,8 +153,8 @@ META = {
             titleHtml='Monster Munch<br>Escape',
             subtitle="Don't get eaten! The last survivor wins 🏆",
             tagline='A random name picker instead of a ladder game or roulette wheel — penalties and turn order',
-            hud='🏃 Left', boom='🍔 Throw snack ×3',
-            snackHelp='During a match, press the button or the space key to throw a snack at the monster. Three uses per match.'),
+            playHint='🍔 Snack drops turn the chase around!<br>Automatic deliveries, narrow escapes. Who survives the final chase?', demo='Watch 12 runners',
+            hud='🏃 Left'),
         'zh': dict(
             name='大胃怪物大逃亡',
             title='大胃怪物大逃亡 👾 随机生存点名 — 替代阶梯抽签和轮盘 | 免费网页小游戏',
@@ -168,8 +168,8 @@ META = {
             titleHtml='大胃怪物<br>大逃亡',
             subtitle='别被吃掉！最后的幸存者获胜 🏆',
             tagline='代替阶梯抽签和轮盘的随机点名工具 — 定惩罚、定顺序',
-            hud='🏃 剩余', boom='🍔 投喂夜宵 ×3',
-            snackHelp='比赛中点击按钮或按空格键，就会向怪物投喂夜宵。每局可以使用 3 次。'),
+            playHint='🍔 夜宵空投，让追逐逆转！<br>自动投喂、惊险逃脱，谁能活到最后？', demo='观看 12 人赛跑',
+            hud='🏃 剩余'),
         'ja': dict(
             name='大食いモンスターから大脱走',
             title='大食いモンスターから大脱走 👾 名前を入れて回すランダム抽選 — あみだくじ・ルーレット代わり | 無料ブラウザゲーム',
@@ -183,8 +183,8 @@ META = {
             titleHtml='大食いモンスター<br>から大脱走',
             subtitle='食べられるな！最後の生存者が優勝 🏆',
             tagline='あみだくじ・ルーレット代わりの名前抽選 — 罰ゲームや順番決めに',
-            hud='🏃 残り', boom='🍔 夜食投げ ×3',
-            snackHelp='試合中にボタンかスペースキーを押すと、モンスターに夜食を投げます。1試合で3回まで使えます。'),
+            playHint='🍔 夜食が降ると追跡も大逆転！<br>自動配達とギリギリの逃走劇。最後まで残る名前は？', demo='12人で観戦する',
+            hud='🏃 残り'),
     },
     'obstacle-run': {
         'ko': dict(
@@ -193,14 +193,15 @@ META = {
             desc='이름을 최대 300개까지 넣고 달려서 순위를 정하는 레이스 미니게임. 사다리게임·룰렛 대신 순서, 벌칙, 팀 나누기에 쓰세요. 설치 없이 무료 플레이.',
             keywords='장애물 대탈주 300, 랜덤 뽑기, 이름 뽑기, 순위 정하기, 사다리게임, 룰렛, 미니게임, 무료게임, 브라우저게임, 러닝게임, 캐주얼 게임',
             ogTitle='장애물 대탈주 300 🏁',
-            ogDesc='장애물을 넘어 300m 완주에 도전! 지금 바로 무료로 플레이.',
+            ogDesc='로켓, 방패, 바나나로 끝까지 뒤집히는 자동 이름 레이스! 최대 300명까지 무료로 플레이.',
             schemaAlt='이름 레이스 순위 뽑기',
             schemaDesc='최대 300명의 이름을 넣고 장애물을 넘어 순위를 가리는 러닝 게임.',
             schemaKeywords='랜덤 뽑기, 이름 뽑기, 순위 정하기, 사다리게임, 룰렛',
             titleHtml='장애물<br>대탈주',
-            subtitle='해머, 크러셔, 진흙탕을 뚫고 결승선까지! 최대 300명 🏁',
+            subtitle='아이템 먹고, 날아오르고, 끝에서 뒤집는 자동 레이스 🏁',
             tagline='사다리게임·룰렛 대신 쓰는 순위 뽑기 — 순서·벌칙·팀 나누기',
-            hud='🏁 완주', boom='🍌 바나나 비 ×3', ff='⏩ ×3 빨리감기',
+            playHint='🚀 로켓 · 🛡️ 방패 · 🍌 바나나 · 🌀 도약<br>아이템부터 역전까지 자동! 이름만 넣고 응원하세요.', demo='12명으로 구경하기',
+            hud='🏁 완주', ff='⏩ ×3 빨리감기',
             addHint='<b>이름 * 4</b> 처럼 입력하고 추가하기 · 최대 300명',
             presets=['봇 +12', '봇 +50', '봇 +100', '봇 +300'], start='▶ 출발!'),
         'en': dict(
@@ -209,14 +210,15 @@ META = {
             desc='Drop in up to 300 names and race them for a full ranking. Use it instead of a ladder game or roulette wheel to set turn order, penalties or teams. Free, no install.',
             keywords='obstacle run 300, random name picker, ranking generator, ladder game, roulette, wheel of names, minigame, free game, browser game, running game, casual game',
             ogTitle='Obstacle Run 300 🏁',
-            ogDesc='Hammers, crushers, mud — sprint 300m to the finish line! Play free.',
+            ogDesc='Rockets, shields and banana rain! Watch up to 300 names race for the finish. Free automatic play.',
             schemaAlt='Name race ranking generator',
             schemaDesc='A running game that races up to 300 names past obstacles for a full ranking.',
             schemaKeywords='random name picker, ranking generator, ladder game, roulette, wheel of names',
             titleHtml='Obstacle<br>Run',
-            subtitle='Hammers, crushers, mud — sprint to the tape! Up to 300 runners 🏁',
+            subtitle='Grab items, take flight, steal the finish. An automatic race 🏁',
             tagline='A ranking picker instead of a ladder game or roulette wheel — turn order, penalties, teams',
-            hud='🏁 Finished', boom='🍌 Banana rain ×3', ff='⏩ ×3 fast-forward',
+            playHint='🚀 Rockets · 🛡️ Shields · 🍌 Bananas · 🌀 Jumps<br>Items and overtakes happen automatically. Add names and cheer.', demo='Watch 12 runners',
+            hud='🏁 Finished', ff='⏩ ×3 fast-forward',
             addHint='type <b>name * 4</b> and hit Add · up to 300 runners',
             presets=['Bots +12', 'Bots +50', 'Bots +100', 'Bots +300'], start='▶ Go!'),
         'zh': dict(
@@ -225,14 +227,15 @@ META = {
             desc='最多输入 300 个名字，一起跑过障碍决出排名的赛跑小游戏。可以代替阶梯抽签或轮盘来定顺序、定惩罚、分组。免安装，免费玩。',
             keywords='障碍赛跑 300, 随机点名, 排名生成, 阶梯抽签, 轮盘, 抽签工具, 小游戏, 免费游戏, 网页游戏, 跑步游戏, 休闲游戏',
             ogTitle='障碍赛跑 300 🏁',
-            ogDesc='穿过铁锤、粉碎机和泥潭，冲过 300 米终点线！免费开玩。',
+            ogDesc='火箭、护盾和香蕉雨！最多300个名字，全自动赛跑到最后一刻。免费开玩。',
             schemaAlt='名字赛跑排名工具',
             schemaDesc='最多 300 个名字越过障碍决出完整排名的跑步小游戏。',
             schemaKeywords='随机点名, 排名生成, 阶梯抽签, 轮盘, 抽签工具',
             titleHtml='障碍<br>赛跑',
-            subtitle='穿过铁锤、粉碎机和泥潭冲向终点！最多 300 人 🏁',
+            subtitle='吃道具、飞起来、终点反超！全自动赛跑 🏁',
             tagline='代替阶梯抽签和轮盘的排名工具 — 定顺序、定惩罚、分组',
-            hud='🏁 完赛', boom='🍌 香蕉雨 ×3', ff='⏩ ×3 快进',
+            playHint='🚀 火箭 · 🛡️ 护盾 · 🍌 香蕉 · 🌀 跳跃<br>道具和反超全自动！输入名字，一起加油。', demo='观看 12 人赛跑',
+            hud='🏁 完赛', ff='⏩ ×3 快进',
             addHint='按 <b>名字 * 4</b> 输入后点添加 · 最多 300 人',
             presets=['机器人 +12', '机器人 +50', '机器人 +100', '机器人 +300'], start='▶ 出发！'),
         'ja': dict(
@@ -241,14 +244,15 @@ META = {
             desc='名前を最大300件入れて走らせ、順位を決めるレースミニゲーム。あみだくじやルーレットの代わりに、順番決め・罰ゲーム・チーム分けにどうぞ。インストール不要、無料。',
             keywords='障害物レース300, 名前 抽選, 順位 決め, あみだくじ, ルーレット, ランダム 抽選, ミニゲーム, 無料ゲーム, ブラウザゲーム, レースゲーム, カジュアルゲーム',
             ogTitle='障害物レース300 🏁',
-            ogDesc='ハンマーもクラッシャーも泥沼も越えて300m完走に挑戦！今すぐ無料でプレイ。',
+            ogDesc='ロケット、シールド、バナナの雨！最大300人の自動レースでゴール直前の大逆転。無料で観戦。',
             schemaAlt='名前レース順位抽選',
             schemaDesc='最大300人の名前が障害物を越えて順位を競うレースゲーム。',
             schemaKeywords='名前 抽選, 順位 決め, あみだくじ, ルーレット, ランダム 抽選',
             titleHtml='障害物<br>レース',
-            subtitle='ハンマー、クラッシャー、泥沼を越えてゴールへ！最大300人 🏁',
+            subtitle='アイテムで飛び出して、ゴール直前の大逆転！自動レース 🏁',
             tagline='あみだくじ・ルーレット代わりの順位抽選 — 順番決め・罰ゲーム・チーム分け',
-            hud='🏁 完走', boom='🍌 バナナの雨 ×3', ff='⏩ ×3 早送り',
+            playHint='🚀 ロケット · 🛡️ シールド · 🍌 バナナ · 🌀 ジャンプ<br>アイテムも逆転も自動！名前を入れて応援しよう。', demo='12人で観戦する',
+            hud='🏁 完走', ff='⏩ ×3 早送り',
             addHint='<b>名前 * 4</b> の形で入力して追加 · 最大300人',
             presets=['ボット +12', 'ボット +50', 'ボット +100', 'ボット +300'], start='▶ スタート！'),
     },
@@ -489,7 +493,12 @@ T_PUSH = {
 }
 
 T_MONSTER = {
-    'ko': """  mute: '소리 끄기',
+    'ko': """  autoSnack: n => `🍔 자동 배달 ${n}초`,
+  chaseTarget: name => `🎯 ${name} 도망쳐!`,
+  chaseReady: '👀 다음 타깃을 찾는 중…',
+  eliminated: (n, name) => `${n}위 · ${name} 냠!`,
+  botName: '봇',
+  mute: '소리 끄기',
   unmute: '소리 켜기',
   snack1: '새벽 2시 햄버거', snack1r: '다이어트는 내일부터!',
   snack2: '민트초코 피자', snack2r: '이 조합... 실화냐?',
@@ -512,18 +521,20 @@ T_MONSTER = {
   bonk: '띵~',
   oops: '아이쿠!',
   monsterWoke: '괴물이 깨어났다!',
-  throwSnack: n => `🍔 야식 투척 ×${n}`,
   delivering: '배달 중…',
   snackSoldOut: '🍽️ 야식 완판',
-  seconds: n => `${n}초`,
-  snackCooldown: n => `야식 투척 재사용까지 ${n}초`,
   delivered: '배달!',
   rosterEmpty: '아직 참가자가 없어요',
   hintEmpty: '이름을 입력하고 추가하기를 누르세요',
   hintReady: n => `${n}명 참가 — 시작할 수 있어요!`,
   hintNeedMore: n => `${n}명 이상부터 시작할 수 있어요`,
   numName: n => n + '번'""",
-    'en': """  mute: 'Mute',
+    'en': """  autoSnack: n => `🍔 Auto drop in ${n}s`,
+  chaseTarget: name => `🎯 Run, ${name}!`,
+  chaseReady: '👀 Looking for the next target…',
+  eliminated: (n, name) => `#${n} · ${name} — MUNCH!`,
+  botName: 'Bot',
+  mute: 'Mute',
   unmute: 'Unmute',
   snack1: '2 a.m. burger', snack1r: 'The diet starts tomorrow!',
   snack2: 'Mint choco pizza', snack2r: 'That combo... seriously?',
@@ -546,18 +557,20 @@ T_MONSTER = {
   bonk: 'BONK~',
   oops: 'Oops!',
   monsterWoke: 'The monster woke up!',
-  throwSnack: n => `🍔 Throw snack ×${n}`,
   delivering: 'Delivering…',
   snackSoldOut: '🍽️ Snacks sold out',
-  seconds: n => `${n}s`,
-  snackCooldown: n => `${n}s until the next snack throw`,
   delivered: 'Delivered!',
   rosterEmpty: 'No players yet',
   hintEmpty: 'Type a name and hit Add',
   hintReady: n => `${n} players — ready to start!`,
   hintNeedMore: n => `Needs at least ${n} players to start`,
   numName: n => '#' + n""",
-    'zh': """  mute: '静音',
+    'zh': """  autoSnack: n => `🍔 ${n}秒后自动投喂`,
+  chaseTarget: name => `🎯 ${name}，快跑！`,
+  chaseReady: '👀 正在寻找下一个目标…',
+  eliminated: (n, name) => `第${n}名 · ${name} 被吃掉了！`,
+  botName: '机器人',
+  mute: '静音',
   unmute: '取消静音',
   snack1: '凌晨两点的汉堡', snack1r: '减肥明天再说！',
   snack2: '薄荷巧克力披萨', snack2r: '这搭配……认真的？',
@@ -580,18 +593,20 @@ T_MONSTER = {
   bonk: '咚～',
   oops: '哎哟！',
   monsterWoke: '怪物醒了！',
-  throwSnack: n => `🍔 投喂夜宵 ×${n}`,
   delivering: '配送中…',
   snackSoldOut: '🍽️ 夜宵售罄',
-  seconds: n => `${n}秒`,
-  snackCooldown: n => `距离下次投喂还有 ${n} 秒`,
   delivered: '送到！',
   rosterEmpty: '还没有参与者',
   hintEmpty: '输入名字后点添加',
   hintReady: n => `${n} 人参加 — 可以开始了！`,
   hintNeedMore: n => `至少要 ${n} 人才能开始`,
   numName: n => n + ' 号'""",
-    'ja': """  mute: 'ミュート',
+    'ja': """  autoSnack: n => `🍔 自動配達まで${n}秒`,
+  chaseTarget: name => `🎯 ${name}、逃げて！`,
+  chaseReady: '👀 次のターゲットを探している…',
+  eliminated: (n, name) => `${n}位 · ${name} パクッ！`,
+  botName: 'ボット',
+  mute: 'ミュート',
   unmute: 'ミュート解除',
   snack1: '深夜2時のハンバーガー', snack1r: 'ダイエットは明日から！',
   snack2: 'ミントチョコピザ', snack2r: 'この組み合わせ…マジ？',
@@ -614,11 +629,8 @@ T_MONSTER = {
   bonk: 'ゴツン〜',
   oops: 'おっと！',
   monsterWoke: 'モンスターが目を覚ました！',
-  throwSnack: n => `🍔 夜食投げ ×${n}`,
   delivering: '配達中…',
   snackSoldOut: '🍽️ 夜食完売',
-  seconds: n => `${n}秒`,
-  snackCooldown: n => `次の夜食投げまで ${n} 秒`,
   delivered: '配達！',
   rosterEmpty: 'まだ参加者がいません',
   hintEmpty: '名前を入力して追加を押してください',
@@ -628,7 +640,16 @@ T_MONSTER = {
 }
 
 T_OBSTACLE = {
-    'ko': """  mute: '소리 끄기',
+    'ko': """  autoRace: '자동 레이스 · 끝까지 모른다!',
+  itemGate: '아이템 게이트',
+  shieldSave: '방패 방어!',
+  turboFever: '⚡ 전원 과속 타임!',
+  front: '선두',
+  nextEvent: n => `다음 돌발 이벤트 ${n}초`,
+  distanceLeft: n => `결승까지 ${n}m`,
+  raceRecap: n => `선두 교체 ${n}회`,
+  finishGap: n => `1·2위 차이 ${n}초`,
+  mute: '소리 끄기',
   unmute: '소리 켜기',
   slip: '미끌!',
   oops: '아이쿠!',
@@ -644,14 +665,22 @@ T_OBSTACLE = {
   reviewing: '판독중…',
   racersStart: n => `${n}명 출발!`,
   botName: '봇',
-  bananaRain: n => `🍌 바나나 비 ×${n}`,
   bananaRainBanner: '바나나 비!!',
   rosterEmpty: '아직 참가자가 없어요',
   hintEmpty: '이름을 입력하고 추가하기를 누르세요',
   hintReady: n => `${n}명 참가 — 시작할 수 있어요!`,
   hintNeedMore: n => `${n}명 이상부터 시작할 수 있어요`,
   numName: n => n + '번'""",
-    'en': """  mute: 'Mute',
+    'en': """  autoRace: 'Automatic race · anyone can win!',
+  itemGate: 'ITEM GATE',
+  shieldSave: 'Shield save!',
+  turboFever: '⚡ EVERYONE GO TURBO!',
+  front: 'LEADER',
+  nextEvent: n => `Next course event in ${n}s`,
+  distanceLeft: n => `${n}m to finish`,
+  raceRecap: n => `${n} lead changes`,
+  finishGap: n => `${n}s between 1st and 2nd`,
+  mute: 'Mute',
   unmute: 'Unmute',
   slip: 'Slip!',
   oops: 'Oops!',
@@ -667,14 +696,22 @@ T_OBSTACLE = {
   reviewing: 'Reviewing…',
   racersStart: n => `${n} runners off!`,
   botName: 'Bot',
-  bananaRain: n => `🍌 Banana rain ×${n}`,
   bananaRainBanner: 'BANANA RAIN!!',
   rosterEmpty: 'No players yet',
   hintEmpty: 'Type a name and hit Add',
   hintReady: n => `${n} players — ready to start!`,
   hintNeedMore: n => `Needs at least ${n} players to start`,
   numName: n => '#' + n""",
-    'zh': """  mute: '静音',
+    'zh': """  autoRace: '全自动赛跑 · 胜负未定！',
+  itemGate: '道具闸门',
+  shieldSave: '护盾挡住了！',
+  turboFever: '⚡ 全员加速！',
+  front: '领先',
+  nextEvent: n => `${n}秒后突发事件`,
+  distanceLeft: n => `距终点${n}米`,
+  raceRecap: n => `领先易主${n}次`,
+  finishGap: n => `前两名相差${n}秒`,
+  mute: '静音',
   unmute: '取消静音',
   slip: '滑倒！',
   oops: '哎哟！',
@@ -690,14 +727,22 @@ T_OBSTACLE = {
   reviewing: '判定中…',
   racersStart: n => `${n} 人出发！`,
   botName: '机器人',
-  bananaRain: n => `🍌 香蕉雨 ×${n}`,
   bananaRainBanner: '香蕉雨！！',
   rosterEmpty: '还没有参与者',
   hintEmpty: '输入名字后点添加',
   hintReady: n => `${n} 人参加 — 可以开始了！`,
   hintNeedMore: n => `至少要 ${n} 人才能开始`,
   numName: n => n + ' 号'""",
-    'ja': """  mute: 'ミュート',
+    'ja': """  autoRace: '自動レース · 最後までわからない！',
+  itemGate: 'アイテムゲート',
+  shieldSave: 'シールドで防御！',
+  turboFever: '⚡ 全員ターボ！',
+  front: 'トップ',
+  nextEvent: n => `次のハプニングまで${n}秒`,
+  distanceLeft: n => `ゴールまで${n}m`,
+  raceRecap: n => `トップ交代${n}回`,
+  finishGap: n => `1・2位の差は${n}秒`,
+  mute: 'ミュート',
   unmute: 'ミュート解除',
   slip: 'ツルッ！',
   oops: 'おっと！',
@@ -713,7 +758,6 @@ T_OBSTACLE = {
   reviewing: '判定中…',
   racersStart: n => `${n}人スタート！`,
   botName: 'ボット',
-  bananaRain: n => `🍌 バナナの雨 ×${n}`,
   bananaRainBanner: 'バナナの雨！！',
   rosterEmpty: 'まだ参加者がいません',
   hintEmpty: '名前を入力して追加を押してください',
@@ -826,11 +870,13 @@ def game_page(slug, lang):
     head = GAME_HEAD.substitute(
         gaTag=ga_tag(), htmlLang=HTML_LANG[lang], ogLocale=OG_LOCALE[lang], schemaLang=SCHEMA_LANG[lang],
         base=BASE, url=page_url(slug, lang), slug=slug, emoji=EMOJI[slug],
-        stylesheet=royale_asset('push-royale.css') if slug == 'push-royale' else f'{slug}.css',
+        stylesheet=game_asset(f'{slug}.css'),
         siteName=SITE_NAME[lang], hreflang=hreflang_block(slug), altLocales=alt_locales(lang),
         title=m['title'], desc=m['desc'], keywords=m['keywords'],
         ogTitle=m['ogTitle'], ogDesc=m['ogDesc'], name=m['name'],
         schemaAlt=m['schemaAlt'], schemaDesc=m['schemaDesc'], schemaKeywords=m['schemaKeywords'])
+
+    head = head.replace('maximum-scale=1.0, user-scalable=no', 'viewport-fit=cover')
 
     presets = ''
     if 'presets' in m:
@@ -839,16 +885,19 @@ def game_page(slug, lang):
         presets = f'    <div class="presets">\n{rows}\n    </div>\n'
 
     if slug == 'monster-chase':
-        hud = (f'<div id="hud">\n  <div class="pill">{m["hud"]} <span class="big" id="aliveCount">0</span></div>\n'
-               f'  <button id="boomBtn" type="button" aria-keyshortcuts="Space" aria-describedby="snackHelp">{m["boom"]}</button>\n</div>\n'
+        hud = (f'<div id="hud" hidden>\n  <div class="pill">{m["hud"]} <span class="big" id="aliveCount">0</span></div>\n'
+               f'  <div id="snackStatus" class="pill"></div>\n</div>\n'
                f'<div id="snackCombo" role="status" aria-live="polite" hidden></div>\n'
-               f'<span id="snackHelp" class="srOnly">{m["snackHelp"]}</span>\n')
+               '<section id="chaseFeed" hidden><strong id="chaseHeadline"></strong>\n'
+               '<div id="chaseLog" role="log" aria-live="polite" aria-relevant="additions"></div></section>\n')
         crown, extra = '👑', ''
     elif slug == 'obstacle-run':
-        hud = (f'<div id="hud">\n  <div class="pill">{m["hud"]} <span class="big" id="finCount">0</span>'
+        hud = (f'<div id="hud" hidden>\n  <div class="pill">{m["hud"]} <span class="big" id="finCount">0</span>'
                f'<span id="totCount" style="opacity:.6">/300</span></div>\n'
-               f'  <button id="boomBtn">{m["boom"]}</button>\n</div>\n'
-               f'<div id="ffChip">{m["ff"]}</div>\n<div id="ticker"></div>\n')
+               '  <div class="pill raceClock"><span id="raceDistance"></span><b id="raceClock">0.0s</b></div>\n</div>\n'
+               f'<div id="ffChip">{m["ff"]}</div>\n<div id="ticker" role="log" aria-live="polite" aria-relevant="additions"></div>\n'
+               '<section id="raceBoard" hidden><div class="raceBoardTitle"><b>LIVE</b><span id="raceEvent"></span></div>\n'
+               '<div class="courseMeter"><div id="courseProgress"></div></div><div id="raceLeaders"></div></section>\n')
         crown, extra = '🏆', ''
     else:
         hud = (f'<div id="hud" hidden>\n  <div class="pill">{m["hud"]} <span class="big" id="aliveCount">0</span></div>\n'
@@ -864,9 +913,12 @@ def game_page(slug, lang):
     share_url = f"  shareUrl: '{page_url(slug, lang)}',\n" if slug == 'push-royale' else ''
     win_screen = WIN_SCREEN.substitute(crown=crown, again=r['again'], extra=extra)
     effects_script = ''
-    play_hint = ''
-    demo_button = ''
-    game_script = f'{slug}.js'
+    play_hint = f'<p class="arenaIntro">{m.get("playHint", "")}</p>\n'
+    demo_button = f'<button class="demoBtn" id="demoBtn" type="button">{m.get("demo", "")}</button>\n'
+    game_script = game_asset(f'{slug}.js')
+    if slug == 'obstacle-run':
+        effects_script = f'<script src="{game_asset("obstacle-run-fx.js")}"></script>\n'
+        win_screen = win_screen.replace('<ul class="rankList"', '<p id="raceSummary"></p>\n  <ul class="rankList"')
     if slug == 'push-royale':
         head = head.replace('maximum-scale=1.0, user-scalable=no', 'viewport-fit=cover')
         play_hint = f'<p class="arenaIntro">{m["playHint"]}</p>\n'
@@ -889,8 +941,8 @@ def game_page(slug, lang):
   </div>
 </div>
 '''
-        effects_script = f'<script src="{royale_asset("push-royale-fx.js")}"></script>\n'
-        game_script = royale_asset('push-royale.js')
+        effects_script = f'<script src="{game_asset("push-royale-fx.js")}"></script>\n'
+        game_script = game_asset('push-royale.js')
 
     return head + f"""<body>
 <canvas id="game"></canvas>

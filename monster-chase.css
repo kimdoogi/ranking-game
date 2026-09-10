@@ -12,7 +12,7 @@
   #hud {
     position: fixed; top: 0; left: 0; right: 0;
     display: flex; justify-content: space-between; align-items: flex-start;
-    padding: 16px 20px; pointer-events: none; z-index: 5;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 18px 10px; pointer-events: none; z-index: 5;
   }
   .pill {
     background: rgba(20,20,40,.55); backdrop-filter: blur(8px);
@@ -22,17 +22,8 @@
     display: flex; gap: 8px; align-items: center;
   }
   .pill .big { font-size: 22px; color: #ffd23f; text-shadow: 0 0 12px rgba(255,210,63,.6); }
-  #boomBtn {
-    pointer-events: auto; cursor: pointer;
-    background: linear-gradient(135deg,#ff4d6d,#ff8a3d);
-    border: none; border-radius: 14px; color: #fff;
-    font-weight: 900; font-size: 15px; padding: 10px 18px;
-    box-shadow: 0 6px 20px rgba(255,77,109,.45);
-    transition: transform .08s;
-  }
-  #boomBtn:active { transform: scale(.92); }
-  #boomBtn:disabled { cursor: not-allowed; opacity: .48; box-shadow: none; }
-  #boomBtn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  [hidden] { display: none !important; }
+  #snackStatus { color: #ffe2ac; font-size: 12px; }
   #snackCombo {
     position: fixed; top: 64px; right: 20px; z-index: 5;
     border: 1px solid rgba(255,210,63,.55); border-radius: 10px;
@@ -48,10 +39,11 @@
 
   .overlay {
     position: fixed; inset: 0; z-index: 10;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: safe center; overflow-y: auto;
     background: radial-gradient(ellipse at center, rgba(20,16,40,.72), rgba(5,5,14,.92));
-    backdrop-filter: blur(3px); text-align: center; padding: 24px 24px 72px;
+    backdrop-filter: blur(3px); text-align: center; padding: calc(24px + env(safe-area-inset-top, 0px)) 20px calc(80px + env(safe-area-inset-bottom, 0px));
   }
+  .overlay > * { flex-shrink: 0; }
   .overlay.hidden { display: none; }
 
   .title {
@@ -71,7 +63,7 @@
   #nameInput {
     flex:1; min-width:0; height:44px;
     background: rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14);
-    border-radius:12px; color:#fff; font-weight:700; font-size:15px;
+    border-radius:12px; color:#fff; font-weight:700; font-size:16px;
     padding:0 14px; font-family:inherit; outline:none;
   }
   #nameInput::placeholder { color: rgba(200,200,230,.45); }
@@ -148,10 +140,9 @@
     text-shadow: 0 0 60px rgba(255,210,63,.8);
   }
   @media (max-width: 560px) {
-    #hud { padding: 10px 12px; gap: 8px; }
+    #hud { padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; gap: 8px; }
     .pill { padding: 7px 10px; font-size: 12px; }
     .pill .big { font-size: 18px; }
-    #boomBtn { padding: 9px 11px; font-size: 13px; }
     #snackCombo { top: 56px; right: 12px; }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -176,3 +167,32 @@
   #utilBar a:hover, #utilBar button:hover { background: rgba(44,44,78,.7); }
   #utilBar a:active, #utilBar button:active { transform: scale(.92); }
   #utilBar button[aria-pressed="true"] { opacity: .5; }
+
+  .tagline { display: block; font-size: 12px; opacity: .6; margin-top: 8px; }
+  .subtitle { max-width: 520px; margin-bottom: 14px; }
+  .arenaIntro { color: #e4cfc3; font-size: 13px; line-height: 1.85; margin-bottom: 20px; }
+  .demoBtn { background: none; border: 0; color: #ffc28c; font-family: inherit; font-size: 14px; font-weight: 700; padding: 14px 20px; cursor: pointer; }
+  button:focus-visible, a:focus-visible { outline: 3px solid #ffd23f; outline-offset: 3px; }
+  #chaseFeed { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(66px + env(safe-area-inset-bottom, 0px)); z-index: 4; pointer-events: none; width: min(440px, calc(100% - 32px)); background: #171326e8; border: 1px solid #ffaf7f30; border-radius: 16px; padding: 12px 14px; }
+  #chaseHeadline { display: block; color: #ffd391; font-size: 14px; margin-bottom: 8px; overflow-wrap: anywhere; }
+  #chaseLog { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chaseOut { border-left: 3px solid; background: #ffffff07; font-size: 12px; color: #d1c5df; padding: 5px 8px; border-radius: 3px; }
+  @media (max-width: 560px) {
+    .subtitle { font-size: 13px; }
+    .tagline { font-size: 10px; }
+    .arenaIntro { font-size: 12px; }
+    .playBtn { padding: 15px 48px; font-size: 21px; }
+    #chaseHeadline { font-size: 13px; }
+  }
+  @media (max-height: 600px) {
+    .overlay { justify-content: flex-start; }
+    .title { font-size: 38px; }
+    .crown { font-size: 48px; }
+  }
+  @media (max-height: 600px) and (orientation: landscape) {
+    #chaseFeed { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: min(440px, calc(100% - 180px)); padding: 8px 12px; }
+    #chaseLog { display: none; }
+    #chaseHeadline { margin: 0; }
+  }
+  #winName { max-width: 100%; overflow-wrap: anywhere; }
+  .rankName { min-width: 0; overflow-wrap: anywhere; }

@@ -11,7 +11,7 @@
   gtag('config', 'G-TNX16BV3PS');
 </script>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>障碍赛跑 300 🏁 最多 300 个名字排名抽签 | 免费网页小游戏</title>
 
 <!-- SEO -->
@@ -36,7 +36,7 @@
 <meta property="og:locale:alternate" content="en_US" />
 <meta property="og:locale:alternate" content="ja_JP" />
 <meta property="og:title" content="障碍赛跑 300 🏁" />
-<meta property="og:description" content="穿过铁锤、粉碎机和泥潭，冲过 300 米终点线！免费开玩。" />
+<meta property="og:description" content="火箭、护盾和香蕉雨！最多300个名字，全自动赛跑到最后一刻。免费开玩。" />
 <meta property="og:url" content="https://kimdoogi.github.io/ranking-game/obstacle-run-zh.html" />
 <meta property="og:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
 <meta property="og:image:width" content="1200" />
@@ -45,7 +45,7 @@
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="障碍赛跑 300 🏁" />
-<meta name="twitter:description" content="穿过铁锤、粉碎机和泥潭，冲过 300 米终点线！免费开玩。" />
+<meta name="twitter:description" content="火箭、护盾和香蕉雨！最多300个名字，全自动赛跑到最后一刻。免费开玩。" />
 <meta name="twitter:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
 
 <!-- Structured data -->
@@ -69,7 +69,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="obstacle-run.css" />
+<link rel="stylesheet" href="obstacle-run.css?v=4515249297" />
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -79,20 +79,23 @@
   <button id="muteBtn" type="button" aria-pressed="false" aria-label="静音" title="静音">🔊</button>
 </div>
 
-<div id="hud">
+<div id="hud" hidden>
   <div class="pill">🏁 完赛 <span class="big" id="finCount">0</span><span id="totCount" style="opacity:.6">/300</span></div>
-  <button id="boomBtn">🍌 香蕉雨 ×3</button>
+  <div class="pill raceClock"><span id="raceDistance"></span><b id="raceClock">0.0s</b></div>
 </div>
 <div id="ffChip">⏩ ×3 快进</div>
-<div id="ticker"></div>
+<div id="ticker" role="log" aria-live="polite" aria-relevant="additions"></div>
+<section id="raceBoard" hidden><div class="raceBoardTitle"><b>LIVE</b><span id="raceEvent"></span></div>
+<div class="courseMeter"><div id="courseProgress"></div></div><div id="raceLeaders"></div></section>
 
 <div id="countdown"></div>
 
 <div class="overlay" id="startScreen">
   <div class="title">障碍<br>赛跑</div>
-  <div class="subtitle">穿过铁锤、粉碎机和泥潭冲向终点！最多 300 人 🏁
+  <div class="subtitle">吃道具、飞起来、终点反超！全自动赛跑 🏁
     <span class="tagline">代替阶梯抽签和轮盘的排名工具 — 定顺序、定惩罚、分组</span>
   </div>
+<p class="arenaIntro">🚀 火箭 · 🛡️ 护盾 · 🍌 香蕉 · 🌀 跳跃<br>道具和反超全自动！输入名字，一起加油。</p>
   <div class="control">
     <label>添加参与者 <span class="hint">按 <b>名字 * 4</b> 输入后点添加 · 最多 300 人</span></label>
     <div class="addRow">
@@ -115,18 +118,29 @@
     <div class="lobbyHint" id="lobbyHint"></div>
   </div>
   <button class="playBtn" id="startBtn">▶ 出发！</button>
+<button class="demoBtn" id="demoBtn" type="button">观看 12 人赛跑</button>
 </div>
 
 <div class="overlay hidden" id="winScreen">
   <div class="crown">🏆</div>
   <div style="font-weight:800;color:#b8b8d8;letter-spacing:2px;">WINNER</div>
   <div id="winName">-</div>
+  <p id="raceSummary"></p>
   <ul class="rankList" id="rankList"></ul>
   <button class="playBtn win" id="againBtn">🔄 再来一局</button>
 </div>
 
 <script>
 window.T = {
+  autoRace: '全自动赛跑 · 胜负未定！',
+  itemGate: '道具闸门',
+  shieldSave: '护盾挡住了！',
+  turboFever: '⚡ 全员加速！',
+  front: '领先',
+  nextEvent: n => `${n}秒后突发事件`,
+  distanceLeft: n => `距终点${n}米`,
+  raceRecap: n => `领先易主${n}次`,
+  finishGap: n => `前两名相差${n}秒`,
   mute: '静音',
   unmute: '取消静音',
   slip: '滑倒！',
@@ -143,7 +157,6 @@ window.T = {
   reviewing: '判定中…',
   racersStart: n => `${n} 人出发！`,
   botName: '机器人',
-  bananaRain: n => `🍌 香蕉雨 ×${n}`,
   bananaRainBanner: '香蕉雨！！',
   rosterEmpty: '还没有参与者',
   hintEmpty: '输入名字后点添加',
@@ -152,6 +165,7 @@ window.T = {
   numName: n => n + ' 号'
 };
 </script>
-<script src="obstacle-run.js"></script>
+<script src="obstacle-run-fx.js?v=53a2e86d11"></script>
+<script src="obstacle-run.js?v=19cf27985e"></script>
 </body>
 </html>

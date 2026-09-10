@@ -12,7 +12,7 @@
   #hud {
     position: fixed; top: 0; left: 0; right: 0;
     display: flex; justify-content: space-between; align-items: flex-start;
-    padding: 16px 20px; pointer-events: none; z-index: 5;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 18px 10px; gap: 8px; pointer-events: none; z-index: 5;
   }
   .pill {
     background: rgba(20,20,40,.55); backdrop-filter: blur(8px);
@@ -22,23 +22,17 @@
     display: flex; gap: 8px; align-items: center;
   }
   .pill .big { font-size: 20px; color: #ffd23f; text-shadow: 0 0 12px rgba(255,210,63,.6); }
-  #boomBtn {
-    pointer-events: auto; cursor: pointer;
-    background: linear-gradient(135deg,#ffd23f,#ff8a3d);
-    border: none; border-radius: 14px; color: #4a2c00;
-    font-weight: 900; font-size: 15px; padding: 10px 18px;
-    box-shadow: 0 6px 20px rgba(255,180,60,.45);
-    transition: transform .08s;
-  }
-  #boomBtn:active { transform: scale(.92); }
+  [hidden] { display: none !important; }
+  .raceClock { flex-direction: column; align-items: flex-end; gap: 2px; font-size: 12px; font-variant-numeric: tabular-nums; }
+  #raceClock { color: #b9ff66; font-size: 18px; }
   #ffChip {
-    position: fixed; top: 64px; right: 20px; z-index: 5; display: none;
+    position: fixed; top: calc(86px + env(safe-area-inset-top, 0px)); right: 18px; z-index: 5; display: none;
     background: rgba(255,210,63,.15); border: 1px solid rgba(255,210,63,.5);
     color: #ffd23f; font-weight: 900; font-size: 13px;
     border-radius: 10px; padding: 5px 10px;
   }
   #ticker {
-    position: fixed; right: 44px; top: 110px; z-index: 4; pointer-events: none;
+    position: fixed; right: 18px; top: calc(124px + env(safe-area-inset-top, 0px)); z-index: 4; pointer-events: none;
     display: flex; flex-direction: column; gap: 4px; align-items: flex-end;
   }
   .tickRow {
@@ -51,20 +45,26 @@
 
   .overlay {
     position: fixed; inset: 0; z-index: 10;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    background: radial-gradient(ellipse at center, rgba(20,16,40,.72), rgba(5,5,14,.92));
-    backdrop-filter: blur(3px); text-align: center; padding: 24px 24px 72px;
+    display: flex; flex-direction: column; align-items: center; justify-content: safe center;
+    overflow-y: auto;
+    background: radial-gradient(ellipse at 70% 15%, rgba(49,96,62,.35), transparent 55%), #0b1320ed;
+    backdrop-filter: blur(3px); text-align: center; padding: calc(24px + env(safe-area-inset-top, 0px)) 20px calc(80px + env(safe-area-inset-bottom, 0px));
   }
+  .overlay > * { flex-shrink: 0; }
   .overlay.hidden { display: none; }
 
   .title {
     font-size: clamp(38px, 9vw, 82px); font-weight: 900; line-height: 1.02;
-    background: linear-gradient(135deg,#3fd0ff,#7b5bff 45%,#ff4d6d);
+    background: linear-gradient(135deg,#ecffc7,#b9ff66 45%,#4ce0c1);
     -webkit-background-clip: text; background-clip: text; color: transparent;
-    filter: drop-shadow(0 4px 24px rgba(123,91,255,.4));
+    filter: drop-shadow(0 4px 24px rgba(185,255,102,.15));
     margin-bottom: 6px;
   }
-  .subtitle { color: #b8b8d8; font-size: clamp(14px,3.5vw,18px); margin-bottom: 26px; font-weight: 600; }
+  .subtitle { color: #b8c8d8; font-size: clamp(14px,3.5vw,18px); margin: 8px 0 14px; font-weight: 600; max-width: 520px; }
+  .tagline { display: block; font-size: 12px; opacity: .6; margin-top: 8px; }
+  .arenaIntro { color: #deeed6; font-size: 13px; line-height: 1.85; margin-bottom: 20px; }
+  .demoBtn { background: none; border: 0; color: #c5e997; font-family: inherit; font-size: 14px; font-weight: 700; padding: 14px 20px; cursor: pointer; }
+  button:focus-visible, a:focus-visible { outline: 3px solid #b9ff66; outline-offset: 3px; }
 
   .control { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 18px; }
   .control label { font-weight: 800; font-size: 16px; color: #cfcff0; }
@@ -81,7 +81,7 @@
   #nameInput {
     flex:1; min-width:0; height:44px;
     background: rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14);
-    border-radius:12px; color:#fff; font-weight:700; font-size:15px;
+    border-radius:12px; color:#fff; font-weight:700; font-size:16px;
     padding:0 14px; font-family:inherit; outline:none;
   }
   #nameInput::placeholder { color: rgba(200,200,230,.45); }
@@ -180,3 +180,52 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
   }
+
+  /* Live race broadcast: the field stays visible above this compact scoreboard. */
+  #raceBoard {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(66px + env(safe-area-inset-bottom, 0px));
+    width: min(560px, calc(100% - 28px)); z-index: 4; pointer-events: none;
+    padding: 12px; border: 1px solid #627e7155; border-radius: 16px;
+    background: #0c1625ed; box-shadow: 0 10px 40px #0004;
+  }
+  .raceBoardTitle { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; }
+  .raceBoardTitle b { color: #b9ff66; font-size: 10px; letter-spacing: 2px; }
+  #raceEvent { color: #d9e3d5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .courseMeter { height: 3px; background: #ffffff18; margin: 10px 0; border-radius: 3px; overflow: hidden; }
+  #courseProgress { height: 100%; background: #b9ff66; transition: width .2s linear; }
+  #raceLeaders { display: flex; gap: 8px; }
+  .liveLeader { flex: 1; min-width: 0; position: relative; overflow: hidden; padding: 8px; border-radius: 9px; background: #ffffff07; border: 1px solid #ffffff0a; }
+  .liveLeader.changed { border-color: var(--runner); }
+  .leaderRank { display: block; font-weight: 900; color: var(--runner); font-size: 12px; line-height: 1; }
+  .leaderName { display: block; font-size: 13px; font-weight: 850; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 5px 0; }
+  .leaderGap { display: block; color: #b6c4d5; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .leaderMeter { position: absolute; bottom: 0; left: 0; height: 2px; background: var(--runner); }
+  #raceSummary { max-width: 100%; color: #c1dba6; font-size: 13px; margin-top: 10px; }
+  @media (max-width: 560px) {
+    #hud { padding-left: 12px; padding-right: 12px; }
+    .pill { font-size: 12px; padding: 8px 10px; gap: 4px; }
+    .raceClock { gap: 2px; font-size: 11px; }
+    .title { font-size: 52px; }
+    .subtitle { font-size: 13px; }
+    .tagline { font-size: 10px; }
+    .arenaIntro { font-size: 12px; }
+    .playBtn { padding: 15px 48px; font-size: 21px; }
+    #raceBoard { padding: 10px; }
+    .leaderName { font-size: 12px; }
+    .rankList { margin: 16px 0; max-height: 38vh; }
+  }
+  @media (max-height: 600px) {
+    .overlay { justify-content: flex-start; }
+    .title { font-size: 38px; }
+    .crown { font-size: 48px; }
+  }
+  @media (max-height: 600px) and (orientation: landscape) {
+    #raceBoard { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: min(520px, calc(100% - 180px)); padding: 7px 10px; }
+    .raceBoardTitle, .leaderRank, .leaderMeter { display: none; }
+    .courseMeter { margin: 0 0 4px; }
+    .liveLeader { padding: 5px 8px; }
+    .leaderName { margin: 0 0 2px; }
+    #ticker { top: 108px; }
+  }
+  #winName { max-width: 100%; overflow-wrap: anywhere; }
+  .rankName { min-width: 0; overflow-wrap: anywhere; }

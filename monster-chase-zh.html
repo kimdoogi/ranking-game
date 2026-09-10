@@ -11,7 +11,7 @@
   gtag('config', 'G-TNX16BV3PS');
 </script>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>大胃怪物大逃亡 👾 随机生存点名 — 替代阶梯抽签和轮盘 | 免费网页小游戏</title>
 
 <!-- SEO -->
@@ -69,7 +69,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="monster-chase.css" />
+<link rel="stylesheet" href="monster-chase.css?v=5706530b83" />
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -79,12 +79,13 @@
   <button id="muteBtn" type="button" aria-pressed="false" aria-label="静音" title="静音">🔊</button>
 </div>
 
-<div id="hud">
+<div id="hud" hidden>
   <div class="pill">🏃 剩余 <span class="big" id="aliveCount">0</span></div>
-  <button id="boomBtn" type="button" aria-keyshortcuts="Space" aria-describedby="snackHelp">🍔 投喂夜宵 ×3</button>
+  <div id="snackStatus" class="pill"></div>
 </div>
 <div id="snackCombo" role="status" aria-live="polite" hidden></div>
-<span id="snackHelp" class="srOnly">比赛中点击按钮或按空格键，就会向怪物投喂夜宵。每局可以使用 3 次。</span>
+<section id="chaseFeed" hidden><strong id="chaseHeadline"></strong>
+<div id="chaseLog" role="log" aria-live="polite" aria-relevant="additions"></div></section>
 
 <div id="countdown"></div>
 
@@ -93,6 +94,7 @@
   <div class="subtitle">别被吃掉！最后的幸存者获胜 🏆
     <span class="tagline">代替阶梯抽签和轮盘的随机点名工具 — 定惩罚、定顺序</span>
   </div>
+<p class="arenaIntro">🍔 夜宵空投，让追逐逆转！<br>自动投喂、惊险逃脱，谁能活到最后？</p>
   <div class="control">
     <label>添加参与者 <span class="hint">按 <b>名字 * 4</b> 输入后点添加 · 可重复</span></label>
     <div class="addRow">
@@ -109,6 +111,7 @@
     <div class="lobbyHint" id="lobbyHint"></div>
   </div>
   <button class="playBtn" id="startBtn">▶ 开始！</button>
+<button class="demoBtn" id="demoBtn" type="button">观看 12 人赛跑</button>
 </div>
 
 <div class="overlay hidden" id="winScreen">
@@ -121,6 +124,11 @@
 
 <script>
 window.T = {
+  autoSnack: n => `🍔 ${n}秒后自动投喂`,
+  chaseTarget: name => `🎯 ${name}，快跑！`,
+  chaseReady: '👀 正在寻找下一个目标…',
+  eliminated: (n, name) => `第${n}名 · ${name} 被吃掉了！`,
+  botName: '机器人',
   mute: '静音',
   unmute: '取消静音',
   snack1: '凌晨两点的汉堡', snack1r: '减肥明天再说！',
@@ -144,11 +152,8 @@ window.T = {
   bonk: '咚～',
   oops: '哎哟！',
   monsterWoke: '怪物醒了！',
-  throwSnack: n => `🍔 投喂夜宵 ×${n}`,
   delivering: '配送中…',
   snackSoldOut: '🍽️ 夜宵售罄',
-  seconds: n => `${n}秒`,
-  snackCooldown: n => `距离下次投喂还有 ${n} 秒`,
   delivered: '送到！',
   rosterEmpty: '还没有参与者',
   hintEmpty: '输入名字后点添加',
@@ -157,6 +162,6 @@ window.T = {
   numName: n => n + ' 号'
 };
 </script>
-<script src="monster-chase.js"></script>
+<script src="monster-chase.js?v=cf396a66a5"></script>
 </body>
 </html>

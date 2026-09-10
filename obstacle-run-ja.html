@@ -11,7 +11,7 @@
   gtag('config', 'G-TNX16BV3PS');
 </script>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>障害物レース300 🏁 最大300人の名前で順位抽選 | 無料ブラウザゲーム</title>
 
 <!-- SEO -->
@@ -36,7 +36,7 @@
 <meta property="og:locale:alternate" content="en_US" />
 <meta property="og:locale:alternate" content="zh_CN" />
 <meta property="og:title" content="障害物レース300 🏁" />
-<meta property="og:description" content="ハンマーもクラッシャーも泥沼も越えて300m完走に挑戦！今すぐ無料でプレイ。" />
+<meta property="og:description" content="ロケット、シールド、バナナの雨！最大300人の自動レースでゴール直前の大逆転。無料で観戦。" />
 <meta property="og:url" content="https://kimdoogi.github.io/ranking-game/obstacle-run-ja.html" />
 <meta property="og:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
 <meta property="og:image:width" content="1200" />
@@ -45,7 +45,7 @@
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="障害物レース300 🏁" />
-<meta name="twitter:description" content="ハンマーもクラッシャーも泥沼も越えて300m完走に挑戦！今すぐ無料でプレイ。" />
+<meta name="twitter:description" content="ロケット、シールド、バナナの雨！最大300人の自動レースでゴール直前の大逆転。無料で観戦。" />
 <meta name="twitter:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
 
 <!-- Structured data -->
@@ -69,7 +69,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="obstacle-run.css" />
+<link rel="stylesheet" href="obstacle-run.css?v=4515249297" />
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -79,20 +79,23 @@
   <button id="muteBtn" type="button" aria-pressed="false" aria-label="ミュート" title="ミュート">🔊</button>
 </div>
 
-<div id="hud">
+<div id="hud" hidden>
   <div class="pill">🏁 完走 <span class="big" id="finCount">0</span><span id="totCount" style="opacity:.6">/300</span></div>
-  <button id="boomBtn">🍌 バナナの雨 ×3</button>
+  <div class="pill raceClock"><span id="raceDistance"></span><b id="raceClock">0.0s</b></div>
 </div>
 <div id="ffChip">⏩ ×3 早送り</div>
-<div id="ticker"></div>
+<div id="ticker" role="log" aria-live="polite" aria-relevant="additions"></div>
+<section id="raceBoard" hidden><div class="raceBoardTitle"><b>LIVE</b><span id="raceEvent"></span></div>
+<div class="courseMeter"><div id="courseProgress"></div></div><div id="raceLeaders"></div></section>
 
 <div id="countdown"></div>
 
 <div class="overlay" id="startScreen">
   <div class="title">障害物<br>レース</div>
-  <div class="subtitle">ハンマー、クラッシャー、泥沼を越えてゴールへ！最大300人 🏁
+  <div class="subtitle">アイテムで飛び出して、ゴール直前の大逆転！自動レース 🏁
     <span class="tagline">あみだくじ・ルーレット代わりの順位抽選 — 順番決め・罰ゲーム・チーム分け</span>
   </div>
+<p class="arenaIntro">🚀 ロケット · 🛡️ シールド · 🍌 バナナ · 🌀 ジャンプ<br>アイテムも逆転も自動！名前を入れて応援しよう。</p>
   <div class="control">
     <label>参加者を追加 <span class="hint"><b>名前 * 4</b> の形で入力して追加 · 最大300人</span></label>
     <div class="addRow">
@@ -115,18 +118,29 @@
     <div class="lobbyHint" id="lobbyHint"></div>
   </div>
   <button class="playBtn" id="startBtn">▶ スタート！</button>
+<button class="demoBtn" id="demoBtn" type="button">12人で観戦する</button>
 </div>
 
 <div class="overlay hidden" id="winScreen">
   <div class="crown">🏆</div>
   <div style="font-weight:800;color:#b8b8d8;letter-spacing:2px;">WINNER</div>
   <div id="winName">-</div>
+  <p id="raceSummary"></p>
   <ul class="rankList" id="rankList"></ul>
   <button class="playBtn win" id="againBtn">🔄 もう一回</button>
 </div>
 
 <script>
 window.T = {
+  autoRace: '自動レース · 最後までわからない！',
+  itemGate: 'アイテムゲート',
+  shieldSave: 'シールドで防御！',
+  turboFever: '⚡ 全員ターボ！',
+  front: 'トップ',
+  nextEvent: n => `次のハプニングまで${n}秒`,
+  distanceLeft: n => `ゴールまで${n}m`,
+  raceRecap: n => `トップ交代${n}回`,
+  finishGap: n => `1・2位の差は${n}秒`,
   mute: 'ミュート',
   unmute: 'ミュート解除',
   slip: 'ツルッ！',
@@ -143,7 +157,6 @@ window.T = {
   reviewing: '判定中…',
   racersStart: n => `${n}人スタート！`,
   botName: 'ボット',
-  bananaRain: n => `🍌 バナナの雨 ×${n}`,
   bananaRainBanner: 'バナナの雨！！',
   rosterEmpty: 'まだ参加者がいません',
   hintEmpty: '名前を入力して追加を押してください',
@@ -152,6 +165,7 @@ window.T = {
   numName: n => n + '番'
 };
 </script>
-<script src="obstacle-run.js"></script>
+<script src="obstacle-run-fx.js?v=53a2e86d11"></script>
+<script src="obstacle-run.js?v=19cf27985e"></script>
 </body>
 </html>

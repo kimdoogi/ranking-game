@@ -3,30 +3,35 @@
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fx = new window.ObstacleRunFX(ctx, T, reduceMotion);
   let muted = false;
   try { muted = localStorage.getItem('minigame_muted') === '1'; } catch (e) {}
   let W = 0, H = 0, DPR = 1;
+  let TILT = 0.82;
+  let raceRandom = Math.random;
+  const fxRand = (a, b) => a + Math.random() * (b - a);
 
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, playerCount > 150 ? 1.5 : 2);
     W = window.innerWidth; H = window.innerHeight;
+    TILT = W < H ? 0.86 : 0.62;
     canvas.width = W * DPR; canvas.height = H * DPR;
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
   function remapWorld() {
-    // course length/positions live in world units tied to setup-H; on resize we only
-    // need lateral remap (track is recomputed from W each frame) + camera reset
+    // Rotation changes the lens, never the course, speed or collision geometry.
     if (!race) return;
-    cam.x = 0;
+    cam.x = cam.tx = 0;
+    cam.zoom = cam.tz = cameraFit();
   }
   window.addEventListener('resize', () => { resize(); remapWorld(); });
 
-  function rand(a, b) { return a + Math.random() * (b - a); }
+  function rand(a, b) { return a + raceRandom() * (b - a); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function lerp(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }
 
-  // deterministic per-name personality (duplicates = twins, stable across matches)
+  // Names keep recognizable colors; abilities are freshly rolled each race.
   function nameHash(s) {
     let h = 2166136261 >>> 0;
     for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -111,12 +116,14 @@
   let cam = { x: 0, wy: 0, zoom: 1, tx: 0, twy: 0, tz: 1 };
   let shot = { type: 'follow', until: 0, prio: 0 };   // director
   const shotCd = {};
-  let lastWide = 0, lastEventShot = 0;
+  let lastEventShot = 0;
   let wipeBuf = [];              // {t, bandId} for mass-wipeout detection
-  let boomLeft = 3, lastBoom = -99;
+  let nextEvent = 0, turboT = 0, leaderChanges = 0, hudT = 0, photoPending = false;
+  const EVENTS = [{ at: 8, type: 'banana' }, { at: 16, type: 'turbo' }, { at: 25, type: 'banana' }];
+  const ITEMS = ['🚀', '🛡️', '🍌', '🌀'];
   let lastWipeSlowT = -9, pendingLead = -1, pendingLeadT = 0;
   let sortedUnfin = [];
-  const NB5 = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]];
+  const NB9 = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
   let frameMs = 8, q = 0;        // adaptive quality
   let sprites = null;
 
@@ -147,8 +154,8 @@
     const cap = q === 0 ? 250 : q === 1 ? 120 : 60;
     if (particles.length > cap) return;
     for (let i = 0; i < Math.min(n, 12); i++) {
-      const a = rand(0, 6.2832), sp = rand(0.5, spd);
-      particles.push({ x, wy, vx: Math.cos(a) * sp, vwy: Math.sin(a) * sp, life: 1, r: rand(2, 5), color });
+      const a = fxRand(0, 6.2832), sp = fxRand(0.5, spd);
+      particles.push({ x, wy, vx: Math.cos(a) * sp, vwy: Math.sin(a) * sp, life: 1, r: fxRand(2, 5), color });
     }
   }
 
@@ -185,6 +192,8 @@
   }
 
   function setupGame(n) {
+    // Rendering quality cannot consume the simulation's random stream.
+    raceRandom = mulberry32(Math.floor(Math.random() * 4294967296));
     players = []; particles = []; floaters = []; confetti = []; peels = [];
     finishedCount = 0; finishOrder = [];
     winner = null; winnerGameT = 0; gameT = 0; trauma = 0; freezeT = 0;
@@ -192,17 +201,18 @@
     flashT = 0; banner = null;
     leaderId = -1; leadSince = 0;
     photoActive = false; photoDone = false; polaroid = null; finalStretch = false;
-    wipeBuf = []; boomLeft = 3; lastBoom = -99;
+    wipeBuf = []; nextEvent = 0; turboT = 0; leaderChanges = 0; hudT = 0; photoPending = false;
+    accumulator = 0;
     lastWipeSlowT = -9; pendingLead = -1; pendingLeadT = 0; sortedUnfin = [];
     for (const k in shotCd) delete shotCd[k];
     shot = { type: 'follow', until: 0, prio: 0 };
-    lastWide = 0; lastEventShot = 0;
+    lastEventShot = 0;
     document.getElementById('ticker').innerHTML = '';
     document.getElementById('ffChip').style.display = 'none';
+    document.getElementById('raceLeaders').replaceChildren();
+    document.getElementById('raceSummary').textContent = '';
 
-    const sc = clamp(H / 800, 0.6, 1.2);
-    const course = 9 * H;
-    const trackW = Math.min(W * 0.82, 720 * sc);
+    const sc = 1, course = 4400, trackW = 420;
     buildSprites(sc);
 
     // obstacle bands (fractions of course) — all reskinned as PINBALL elements
@@ -225,7 +235,7 @@
       ] },
       mkHammers(0.17, 2),
       { type: 'sweeper', y: course * 0.28, h: 70 * sc, id: 'sw', spd: rand(0.8, 1.0), lit: -9 },
-      { type: 'convey', y: course * 0.38, h: 90 * sc, id: 'c1', vx: 120, vy: 0 },
+      { type: 'convey', y: course * 0.38, h: 90 * sc, id: 'c1', vx: rand(-1, 1) < 0 ? -2 : 2, vy: 0 },
       // bumper field (was mud)
       { type: 'bumper', y: course * 0.50, h: 120 * sc, id: 'bf',
         pads: Array.from({ length: 12 }, (_, i) => pad(rand(-trackW * 0.42, trackW * 0.42), course * 0.50 + rand(-95, 95) * sc, rand(16, 24), i)) },
@@ -234,33 +244,41 @@
       // kicker solenoids (was crusher) — launch runners up the table
       { type: 'crusher', y: course * 0.80, h: 60 * sc, id: 'cr',
         pistons: Array.from({ length: 5 }, (_, i) => ({ x: -trackW / 2 + trackW * (i + 0.5) / 5, r: 34 * sc, cycle: 1.8, phase: i * 0.3, lit: -9 })) },
-      mkHammers(0.92, 4, { boss: true, fast: true, headR: 42, len: 0.62, h: 74 }),   // final gate - big pop-bumper gauntlet at the tape
+      mkHammers(0.92, 3, { boss: true, fast: true, headR: 34, len: 0.62, h: 74 }),
     ];
+    for (const [i, frac] of [0.21, 0.55, 0.84].entries()) {
+      bands.push({ type: 'item', y: course * frac, h: 36, id: 'item' + i, index: i });
+    }
+    bands.sort((a, b) => a.y - b.y);
     race = { course, sc, trackW, bands };
 
-    // names + duplicate handling (twins share personality; display gets (2), (3)…)
+    // Shuffle slots so entry order does not buy a place on the front row.
     const names = window.__names || [];
-    const seen = {};
-    const cols = Math.min(20, Math.max(6, Math.ceil(Math.sqrt(n * 1.4))));
+    const seen = Object.create(null);
+    const cols = Math.min(n, 20, Math.max(6, Math.ceil(Math.sqrt(n * 1.4))));
+    const slots = Array.from({ length: n }, (_, i) => i);
+    for (let i = slots.length - 1; i > 0; i--) {
+      const j = Math.floor(raceRandom() * (i + 1));
+      [slots[i], slots[j]] = [slots[j], slots[i]];
+    }
     for (let i = 0; i < n; i++) {
       const nm = names[i] || String(i + 1);
       const isNum = !names[i];
       seen[nm] = (seen[nm] || 0) + 1;
       const dispIdx = seen[nm];
       const seed = nameHash(nm);
-      const rng = mulberry32(seed);
-      const hueIdx = seed % HUES.length;
-      const row = Math.floor(i / cols), col = i % cols;
+      const rng = raceRandom;
+      const hueIdx = (seed + dispIdx - 1) % HUES.length;
+      const row = Math.floor(slots[i] / cols), col = slots[i] % cols;
       players.push({
         id: i, name: nm, isNum, dup: dispIdx,
         hue: HUES[hueIdx], color: `hsl(${HUES[hueIdx]}, 85%, 62%)`,
         spriteIdx: hueIdx,
-        // grid start (front row = first entries)
-        wx: -trackW / 2 + trackW * ((col + 0.5) / cols) + (i * 7919 % 13 - 6) * sc,
+        wx: -trackW / 2 + trackW * ((col + 0.5) / cols),
         wy: -(row + 1) * 26 * sc,
         vx: 0, vwy: 0,
         r: 10 * sc,
-        // personality from name hash — twins by design
+        // Fresh personality for each entry, including duplicate names.
         spd: 0.95 + rng() * 0.10,
         reflex: rng() * 0.25,
         courage: 0.75 + rng() * 0.5,
@@ -268,6 +286,7 @@
         recov: 0.8 + rng() * 0.4,
         burst1: 0.15 + rng() * 0.35, burst2: 0.65 + rng() * 0.30,
         burstT: 0, bursted1: false, bursted2: false,
+        shieldT: 0, item: '', itemT: 0, itemGate: -1, hopT: 0, prevWy: 0,
         state: 'run', stateT: 0, invulnT: 0, draft: false,
         shx: 0, shy: 0, waitT: 0, spin: 0,
         nextBand: 0, gapX: 0, gapBand: -1,
@@ -278,7 +297,7 @@
     }
     document.getElementById('totCount').textContent = '/' + n;
     document.getElementById('finCount').textContent = '0';
-    cam = { x: 0, wy: -(Math.ceil(n / cols) + 2) * 26 * sc, zoom: 0.7, tx: 0, twy: 0, tz: 0.7 };
+    cam = { x: 0, wy: -(Math.ceil(n / cols) + 2) * 26 * sc, zoom: cameraFit(), tx: 0, twy: 0, tz: cameraFit() };
     race.gridBack = cam.wy;
   }
 
@@ -286,21 +305,55 @@
   const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   // ---------- Race update ----------
+  function shieldHit(p) {
+    if (p.shieldT <= 0) return false;
+    p.shieldT = 0; p.invulnT = 0.6;
+    addFloaterCap(p, T.shieldSave);
+    spawnParticles(p.wx, p.wy, '#7eeaff', 12, 5);
+    return true;
+  }
+  function giveItem(p) {
+    const item = Math.floor(raceRandom() * ITEMS.length);
+    p.item = ITEMS[item]; p.itemT = 2;
+    if (item === 0) p.burstT = 3.2;
+    else if (item === 1) p.shieldT = 6;
+    else if (item === 2) {
+      peels.push({ x: p.wx, wy: p.wy - 32, t: 0.35, life: 6, alive: true });
+      p.burstT = Math.max(p.burstT, 0.8);
+    } else {
+      p.hopT = 0.65; p.invulnT = 0.7;
+      p.shy += 13; p.state = 'run';
+    }
+    spawnParticles(p.wx, p.wy, item === 1 ? '#7eeaff' : '#ffe073', 8, 4);
+    sfx('item', 180, d => beep(660, 0.12, 'triangle', 0.12 * d, 1100));
+  }
+  function updateEvents(dt) {
+    turboT = Math.max(0, turboT - dt);
+    if (state !== 'racing' || nextEvent >= EVENTS.length || gameT < EVENTS[nextEvent].at) return;
+    const event = EVENTS[nextEvent++];
+    if (event.type === 'turbo') {
+      turboT = 4;
+      showBanner(T.turboFever, '#7effb2', 1.6, true);
+      sfx('turbo', 300, d => beep(220, 0.4, 'sawtooth', 0.12 * d, 660));
+    } else bananaRain();
+  }
   function knock(p, st, dur, vx0, vwy0) {
     if (p.invulnT > 0 || p.finished || p.state === st) return false;
+    if (shieldHit(p)) return false;
     p.state = st; p.stateT = dur * p.recov;
     p.vx = vx0; p.vwy = vwy0;
     return true;
   }
   // pinball ricochet: fling outward from a bumper, keep rolling (no fall)
   function bounceOff(p, cx, cy, power, allowBack) {
+    if (shieldHit(p)) return;
     const dx = p.wx - cx, dy = p.wy - cy, d = Math.hypot(dx, dy) || 0.001;
     p.state = 'bounce'; p.stateT = 0.3;
-    p.vx = dx / d * power + (Math.random() - 0.5) * power * 0.3;
+    p.vx = dx / d * power + (raceRandom() - 0.5) * power * 0.3;
     let vy = dy / d * power * 0.6;
     if (!allowBack && vy < 0) vy = -vy * 0.25;          // convert backward kick to mild forward
     p.vwy = vy + (allowBack ? 0 : power * 0.06);        // forward bias so bumpers don't stall the race
-    p.spin = (Math.random() < 0.5 ? -1 : 1) * rand(9, 15);
+    p.spin = (raceRandom() < 0.5 ? -1 : 1) * rand(9, 15);
     p.rot = 0;
   }
   function recordWipe(bandId, p) {
@@ -308,26 +361,26 @@
     // mass wipeout: ≥5 victims from one obstacle within 0.6s
     const recent = wipeBuf.filter(w => w.bandId === bandId && gameT - w.t < 0.6);
     if (recent.length >= 5 && gameT > 10) {
-      requestShot('wipeout', 80, p.wx, p.wy, 1.6, 1.8, 6);
+      requestShot('wipeout', 80, p.wy, 1.8, 6);
       if (timeScale > 0.999 && !ffMode && gameT - lastWipeSlowT > 6) { lastWipeSlowT = gameT; setSlowmo(0.4, 0.7); }
     }
     if (wipeBuf.length > 40) wipeBuf.splice(0, 20);
   }
-  function requestShot(type, prio, fx, fwy, zoom, hold, cd) {
+  function requestShot(type, prio, fwy, hold, cd) {
     const now = gameT;
     if (now < 10 && type !== 'final' && type !== 'photo') return;      // stampede is the shot
     if (shotCd[type] && now - shotCd[type] < cd) return;
     if (now - lastEventShot < 3 && prio <= shot.prio) return;
     if (prio < shot.prio && now < shot.until) return;
     shotCd[type] = now; lastEventShot = now;
-    shot = { type, until: now + hold, prio, fx, fwy, zoom };
+    shot = { type, until: now + hold, prio, fwy };
   }
 
   function update(dt, fm) {
     gameT += dt;
     const R = race, sc = R.sc, course = R.course;
-    const baseV = 0.16 * H;                     // world px per second
-    const n = players.length;
+    const baseV = 130;
+    updateEvents(dt);
 
     // ---- spatial buckets (separation + slipstream + hammer chains) ----
     const cell = 40 * sc;
@@ -338,7 +391,6 @@
       (buckets[k] || (buckets[k] = [])).push(p);
     }
 
-    const crossers = [];
     let leadWy = -1e9, leadP = null, second = null;
     for (const p of players) {
       if (p.finished) continue;
@@ -348,9 +400,13 @@
 
     // ---- runners ----
     for (const p of players) {
-      if (p.finished) continue;
+      if (p.finished) { p.wy += baseV * dt * 0.5; p.phase += dt * 6; continue; }
+      p.prevWy = p.wy;
       p.invulnT = Math.max(0, p.invulnT - dt);
       if (p.burstT > 0) p.burstT -= dt;
+      p.shieldT = Math.max(0, p.shieldT - dt);
+      p.itemT = Math.max(0, p.itemT - dt);
+      p.hopT = Math.max(0, p.hopT - dt);
 
       if (!p.started) {
         if (gameT >= p.reflex) p.started = true;
@@ -382,14 +438,14 @@
           // tumble projectiles bowl through neighbors (hammer bowling!)
           if (p.state === 'tumble' && Math.abs(p.vx) > 2 * sc) {
             const bx = Math.floor(p.wx / cell), by = Math.floor(p.wy / cell);
-            for (const [ox, oy] of NB5) {
+            for (const [ox, oy] of NB9) {
               const near = buckets[(bx + ox) + ':' + (by + oy)];
               if (!near) continue;
               for (const q2 of near) {
                 if (q2 !== p && (q2.state === 'run' || q2.state === 'getup') && Math.abs(q2.wx - p.wx) < p.r * 2.2 && Math.abs(q2.wy - p.wy) < p.r * 2.2) {
                   if (knock(q2, 'tumble', 0.7, p.vx * 0.6, rand(-0.5, 0.5))) {
                     p.chain = (p.chain || 0) + 1;
-                    if (p.chain >= 3) requestShot('bowling', 90, p.wx, p.wy, 1.7, 2.0, 8);
+                    if (p.chain >= 3) requestShot('bowling', 90, p.wy, 2.0, 8);
                   }
                 }
               }
@@ -406,14 +462,15 @@
         const prog = p.wy / course;
         if (!p.bursted1 && prog > p.burst1) { p.bursted1 = true; p.burstT = 2.5; }
         if (!p.bursted2 && prog > p.burst2) { p.bursted2 = true; p.burstT = 2.5; }
-        if (p.burstT > 0) v *= 1.18;
-        if (p.draft) v *= 1.06;
+        if (p.burstT > 0) v *= 1.65;
+        if (turboT > 0) v *= 1.35;
+        if (p.draft) v *= 1.14;
 
         // band effects & collisions — PINBALL: a hit = a bright ricochet, not a fall
         for (const b of R.bands) {
           if (p.wy < b.y - b.h || p.wy > b.y + b.h) continue;
           if (b.type === 'convey') {                         // rollover lane
-            if (b.vx) zoneVx = b.vx * sc / 60;
+            if (b.vx) zoneVx = b.vx * sc;
             if (b.vy) v *= (1 + b.vy);
           } else if (b.type === 'bumper') {                  // pop bumpers / bumper field
             for (const pd of b.pads) {
@@ -454,10 +511,10 @@
             }
           } else if (b.type === 'sweeper') {                 // flipper — WHACK forward
             const barY = b.y + Math.sin(gameT * b.spd * 2) * b.h * 0.6;
-            if (Math.abs(p.wy - barY) < 10 * sc && p.invulnT <= 0) {
+            if (Math.abs(p.wy - barY) < 10 * sc && p.invulnT <= 0 && !shieldHit(p)) {
               p.state = 'bounce'; p.stateT = 0.3;
               p.vwy = rand(9, 13) * sc; p.vx = rand(-3, 3) * sc;
-              p.spin = (Math.random() < 0.5 ? -1 : 1) * rand(9, 14); p.rot = 0; p.invulnT = 0.15;
+              p.spin = (raceRandom() < 0.5 ? -1 : 1) * rand(9, 14); p.rot = 0; p.invulnT = 0.15;
               b.lit = gameT;
               spawnParticles(p.wx, barY, '#ffb03d', 6, 5);
               if (leadP === p) addTrauma(0.12);
@@ -466,10 +523,10 @@
           } else if (b.type === 'crusher') {                 // kicker solenoids — launch up the table
             for (const pi of b.pistons) {
               const ph = ((gameT + pi.phase) % pi.cycle) / pi.cycle;
-              if (Math.abs(p.wx - pi.x) < pi.r && Math.abs(p.wy - b.y) < pi.r * 0.7 && ph > 0.42 && ph < 0.58 && p.invulnT <= 0) {
+              if (Math.abs(p.wx - pi.x) < pi.r && Math.abs(p.wy - b.y) < pi.r * 0.7 && ph > 0.42 && ph < 0.58 && p.invulnT <= 0 && !shieldHit(p)) {
                 p.state = 'bounce'; p.stateT = 0.34;
                 p.vwy = rand(12, 16) * sc; p.vx = rand(-2, 2) * sc;
-                p.spin = (Math.random() < 0.5 ? -1 : 1) * rand(10, 16); p.rot = 0; p.invulnT = 0.15;
+                p.spin = (raceRandom() < 0.5 ? -1 : 1) * rand(10, 16); p.rot = 0; p.invulnT = 0.15;
                 pi.lit = gameT;
                 spawnParticles(pi.x, b.y, '#7b5bff', 8, 6);
                 if (leadP === p) addTrauma(0.16);
@@ -508,7 +565,7 @@
         {
           const bx = Math.floor(p.wx / cell), by = Math.floor(p.wy / cell);
           let checks = 0;
-          outer: for (const [ox, oy] of NB5) {
+          outer: for (const [ox, oy] of NB9) {
             const nb = buckets[(bx + ox) + ':' + (by + oy)];
             if (!nb) continue;
             for (const q2 of nb) {
@@ -529,28 +586,23 @@
         p.phase += dt * (6 + (p.burstT > 0 ? 4 : 0));
 
         // burst flame trail
-        if (p.burstT > 0 && Math.random() < dt * 12 && q < 2) {
-          particles.push({ x: p.wx, wy: p.wy - p.r, vx: rand(-0.3, 0.3), vwy: -1.5, life: 0.5, r: rand(2, 4), color: '#ff8a3d' });
+        if (p.burstT > 0 && fxRand(0, 1) < dt * 12 && q < 2 && particles.length < 250) {
+          particles.push({ x: p.wx, wy: p.wy - p.r, vx: fxRand(-0.3, 0.3), vwy: -1.5, life: 0.5, r: fxRand(2, 4), color: '#ff8a3d' });
         }
-
-        // finish! (collected — same-frame crossers are ranked by overshoot, not array order)
-        if (p.wy >= course) crossers.push(p);
       }
     }
 
     // ---- runner-vs-runner collisions: real shoving ----
     // dashers shoulder-charge, downed bodies become trip hazards, gaps become contests
-    let pairBudget = q === 2 ? 500 : 1200;
-    collisionPass: for (const a of players) {
+    for (const a of players) {
       if (a.finished || !a.started) continue;
       const aRun = a.state === 'run' || a.state === 'stumble' || a.state === 'getup' || a.state === 'bounce';
       const bx = Math.floor(a.wx / cell), by = Math.floor(a.wy / cell);
-      for (const [ox, oy] of NB5) {
+      for (const [ox, oy] of NB9) {
         const nb = buckets[(bx + ox) + ':' + (by + oy)];
         if (!nb) continue;
         for (const b of nb) {
           if (b.id <= a.id || b.finished || !b.started) continue;
-          if (--pairBudget < 0) break collisionPass;
           const dx = b.wx - a.wx, dy = b.wy - a.wy;
           const minD = (a.r + b.r) * 0.9;
           if (Math.abs(dx) > minD || Math.abs(dy) > minD) continue;
@@ -560,14 +612,14 @@
           const bRun = b.state === 'run' || b.state === 'stumble' || b.state === 'getup' || b.state === 'bounce';
           // trampling a downed body → trip over it
           if (aRun && !bRun) {
-            if (Math.random() < dt * 4 && a.invulnT <= 0 && a.state === 'run') {
+            if (raceRandom() < dt * 4 && a.invulnT <= 0 && a.state === 'run') {
               knock(a, 'stumble', 0.3, -nx * 1.2 * sc, -0.4 * sc);
               addFloaterCap(a, T.oops);
             }
             continue;
           }
           if (!aRun && bRun) {
-            if (Math.random() < dt * 4 && b.invulnT <= 0 && b.state === 'run') {
+            if (raceRandom() < dt * 4 && b.invulnT <= 0 && b.state === 'run') {
               knock(b, 'stumble', 0.3, nx * 1.2 * sc, -0.4 * sc);
               addFloaterCap(b, T.oops);
             }
@@ -581,11 +633,11 @@
           a.wx = clamp(a.wx, -R.trackW / 2 + a.r, R.trackW / 2 - a.r);
           b.wx = clamp(b.wx, -R.trackW / 2 + b.r, R.trackW / 2 - b.r);
           // shove impulse — dashers hit like a shoulder charge
-          const aF = a.dashT > 0 ? 2.0 : 1, bF = b.dashT > 0 ? 2.0 : 1;
+          const aF = a.burstT > 0 ? 2.0 : 1, bF = b.burstT > 0 ? 2.0 : 1;
           const j = clamp(ov * 0.12, 0.05, 0.9) * sc;
           a.shx -= nx * j * bF; a.shy -= ny * j * 0.5 * bF;
           b.shx += nx * j * aF; b.shy += ny * j * 0.5 * aF;
-          if ((aF > 1 || bF > 1) && Math.random() < 0.3) {
+          if ((aF > 1 || bF > 1) && raceRandom() < 0.3) {
             const v2 = aF > 1 ? b : a;
             if (v2.invulnT <= 0 && v2.state === 'run') {
               knock(v2, 'stumble', 0.3, (aF > 1 ? 1 : -1) * nx * 2 * sc, 0);
@@ -599,10 +651,24 @@
       }
     }
 
+    // Crossings also count during a bounce, hop or slide. Interpolate the tape time.
+    const crossers = [];
+    for (const p of players) {
+      if (p.finished) continue;
+      for (const b of R.bands) {
+        if (b.type === 'item' && b.index > p.itemGate && p.prevWy < b.y && p.wy >= b.y) {
+          p.itemGate = b.index; giveItem(p);
+        }
+      }
+      if (p.wy >= course) {
+        p.finT = gameT - dt + dt * clamp((course - p.prevWy) / (p.wy - p.prevWy || 1), 0, 1);
+        crossers.push(p);
+      }
+    }
     if (crossers.length) {
-      crossers.sort((a, b) => b.wy - a.wy);   // furthest past the tape wins the tie
+      crossers.sort((a, b) => a.finT - b.finT);
       for (const p of crossers) {
-        p.finished = true; p.finT = gameT; finishedCount++;
+        p.finished = true; finishedCount++;
         finishOrder.push(p); p.rank = finishOrder.length;
         tickFinish(p);
         if (p.rank === 1) onWinner(p);
@@ -611,13 +677,14 @@
 
     // ---- leader tracking / director ----
     if (leadP && leadP.id !== leaderId) {
-      // candidate must HOLD the front for 1s before the change commits (no flicker shots)
+      // Hold briefly so body contact does not flicker the leader announcement.
       if (pendingLead !== leadP.id) { pendingLead = leadP.id; pendingLeadT = gameT; }
-      else if (gameT - pendingLeadT > 1) {
+      else if (gameT - pendingLeadT > 0.65) {
         const deposedDur = gameT - leadSince;
-        if (state === 'racing' && deposedDur >= 4 && leadP.wy / course > 0.3) {
-          requestShot('leadchg', 70, leadP.wx, leadP.wy, 1.35, 1.5, 8);
-          if (leadP.wy / course > 0.5) showBanner(`${T.leadChange} ${dispName(leadP)}`, leadP.color);
+        if (state === 'racing' && leaderId >= 0) leaderChanges++;
+        if (state === 'racing' && deposedDur >= 2 && leadP.wy / course > 0.12) {
+          requestShot('leadchg', 70, leadP.wy, 1.5, 8);
+          showBanner(`${T.leadChange} ${dispName(leadP)}`, leadP.color);
         }
         leaderId = leadP.id; leadSince = pendingLeadT; pendingLead = -1;
       }
@@ -627,14 +694,14 @@
       finalStretch = true;
       showBanner(T.finalStretch, '#3fd0ff', 1.4, true);
     }
-    if (state === 'racing' && prog1 >= 0.90) requestShot('final', 100, 0, course, 1.25, 99, 99);
+    if (state === 'racing' && prog1 >= 0.90) requestShot('final', 100, course, 99, 99);
     // photo finish arm
     if (state === 'racing' && !photoDone && leadP && second && prog1 >= 0.97) {
       const gap = leadP.wy - second.wy;
       if (gap < 40 * sc && !photoActive) {
         photoActive = true;
         setSlowmo(0.25, 8);                     // realDt budget — covers ~2 game-seconds to the tape
-        requestShot('photo', 120, (leadP.wx + second.wx) / 2, course, 2.2, 99, 99);
+        requestShot('photo', 120, course, 99, 99);
         showBanner(T.photoFinish, '#ffd23f', 1.6, true);
       }
     }
@@ -647,7 +714,13 @@
 
     // ---- camera (single shared rank sort per frame) ----
     sortedUnfin = players.filter(p2 => !p2.finished).sort((a, b) => b.wy - a.wy);
-    updateCamera(dt, fm, leadP);
+    updateCamera(fm);
+    hudT -= dt;
+    if (hudT <= 0) {
+      hudT = 0.2;
+      fx.updateHud(finishOrder.concat(sortedUnfin).slice(0, 3), gameT, course,
+        turboT > 0 ? T.turboFever : (EVENTS[nextEvent] ? T.nextEvent(Math.max(0, Math.ceil(EVENTS[nextEvent].at - gameT))) : T.finalStretch), dispName);
+    }
 
     // ---- effects ----
     for (let i = particles.length - 1; i >= 0; i--) {
@@ -663,7 +736,8 @@
     for (let i = peels.length - 1; i >= 0; i--) {
       const pe = peels[i];
       if (pe.t > 0) pe.t -= dt;
-      if (!pe.alive) peels.splice(i, 1);
+      pe.life -= dt;
+      if (!pe.alive || pe.life <= 0) peels.splice(i, 1);
     }
     for (let i = confetti.length - 1; i >= 0; i--) {
       const c = confetti[i];
@@ -680,12 +754,12 @@
         slowmo = { ts: 3, t: 999 };
       }
       const allDone = finishedCount >= players.length;
-      if (allDone || gameT - winnerGameT > 12) endRace();
+      if (allDone || gameT - winnerGameT > 30) endRace();
     }
 
     document.getElementById('finCount').textContent = finishedCount;
     window.__st = { t: Math.round(gameT * 10) / 10, fin: finishedCount, total: players.length,
-      lead: Math.round(prog1 * 100), state, q, fms: Math.round(frameMs * 10) / 10 };
+      lead: Math.round(prog1 * 100), state, q, fms: Math.round(frameMs * 10) / 10, leaderChanges, events: nextEvent };
   }
 
   function addFloaterCap(p, text) {
@@ -698,7 +772,7 @@
     row.className = 'tickRow' + (p.rank <= 3 ? ' gold' : '');
     row.textContent = `${T.rankNo(p.rank)} ${dispName(p)}`;
     tk.prepend(row);
-    while (tk.children.length > 8) tk.removeChild(tk.lastChild);
+    while (tk.children.length > 3) tk.removeChild(tk.lastChild);
     if (p.rank <= 10 || p.rank % 25 === 0)
       sfx('ding', 90, d => beep(600 + Math.max(0, 10 - p.rank) * 40, 0.08, 'triangle', 0.1 * d));
   }
@@ -708,7 +782,7 @@
     state = 'finale';
     if (photoActive) {
       freezeT = 0.25; fireFlash();
-      capturePolaroid();
+      photoPending = true;
       photoDone = true; photoActive = false;
       setSlowmo(1, 0.01);
     } else {
@@ -722,9 +796,9 @@
     const colors = ['#ffd23f', '#ff4d6d', '#25d366', '#7b5bff', '#3fd0ff', '#ff8a3d'];
     for (let i = 0; i < 150; i++) {
       confetti.push({
-        x: rand(0, W), y: rand(-H * 0.4, 0),
-        vx: rand(-2, 2), vy: rand(2, 6),
-        r: rand(4, 9), rot: rand(0, 6.28), vr: rand(-0.3, 0.3),
+        x: fxRand(0, W), y: fxRand(-H * 0.4, 0),
+        vx: fxRand(-2, 2), vy: fxRand(2, 6),
+        r: fxRand(4, 9), rot: fxRand(0, 6.28), vr: fxRand(-0.3, 0.3),
         color: colors[i % colors.length],
       });
     }
@@ -732,10 +806,10 @@
   function capturePolaroid() {
     try {
       const off = document.createElement('canvas');
-      const pw = Math.min(W * 0.5, 420), ph = pw * 0.62;
+      const pw = Math.min(W - 36, 440), ph = pw * 0.62;
       off.width = pw * DPR; off.height = ph * DPR;
       const og = off.getContext('2d');
-      const finY = H * 0.38 + (cam.wy - race.course) * TILT * cam.zoom;   // the tape's actual screen y
+      const finY = H * 0.44 + (cam.wy - race.course) * TILT * cam.zoom;   // the tape's actual screen y
       const cy0 = clamp(finY - ph * 0.55, 0, Math.max(0, H - ph));
       og.drawImage(canvas, (W / 2 - pw / 2) * DPR, cy0 * DPR, pw * DPR, ph * DPR, 0, 0, pw * DPR, ph * DPR);
       polaroid = { c: off, t0: performance.now(), pw, ph };
@@ -752,59 +826,38 @@
     // rank the unfinished by progress
     const rest = players.filter(p => !p.finished).sort((a, b) => b.wy - a.wy);
     for (const p of rest) { p.rank = finishOrder.length + 1; finishOrder.push(p); }
+    fx.updateHud(finishOrder.slice(0, 3), gameT, race.course, T.winner, dispName);
     setTimeout(showResults, 900);
   }
 
   // ---------- Camera director ----------
-  function updateCamera(dt, fm, leadP) {
-    const R = race, course = R.course;
-    if (gameT > shot.until && shot.prio < 100) { shot = { type: 'follow', until: 0, prio: 0 }; }
-
-    if (shot.type === 'follow' || shot.type === 'wide') {
-      // follow ranks 1-6 centroid
-      let sum = 0, cnt = 0, minWy = 1e9, maxWy = -1e9;
-      const sorted = sortedUnfin;
-      for (let i = 0; i < Math.min(6, sorted.length); i++) { sum += sorted[i].wy; cnt++; }
-      for (let i = 0; i < Math.min(10, sorted.length); i++) { minWy = Math.min(minWy, sorted[i].wy); maxWy = Math.max(maxWy, sorted[i].wy); }
-      if (cnt) {
-        cam.twy = sum / cnt;
-        const spread = (maxWy - minWy) * TILT;   // screen px
-        cam.tz = clamp(lerp(1.15, 0.9, spread / (H * 0.9)), 0.9, 1.15);
-        // periodic wide breather
-        if (shot.type !== 'wide' && gameT - lastWide > 10 && spread > H * 1.6 && gameT - lastEventShot > 3 && gameT > 12) {
-          lastWide = gameT;
-          shot = { type: 'wide', until: gameT + 2, prio: 10 };
-        }
-        if (shot.type === 'wide') cam.tz = 0.75;
-      }
-      cam.tx = 0;
-    } else if (shot.type === 'final' || shot.type === 'photo') {
-      cam.twy = course - H * (shot.type === 'photo' ? 0.065 : 0.29) / 1;   // offsets pre-divided for TILT compression
-      cam.tx = 0;
-      cam.tz = shot.type === 'photo' ? 2.2 : 1.25;
-      if (shot.type === 'photo') { cam.tx = clamp(shot.fx, -R.trackW / 4, R.trackW / 4); }
-    } else {
-      cam.twy = shot.fwy; cam.tx = clamp(shot.fx * 0.5, -R.trackW / 4, R.trackW / 4);
-      cam.tz = shot.zoom;
+  function cameraFit() {
+    return race ? Math.max(0.25, Math.min(1.55, (W - 36) / (race.trackW * 1.14), (H - 130) / 220)) : 1;
+  }
+  function updateCamera(fm) {
+    const fit = cameraFit(), course = race.course;
+    if (gameT > shot.until && shot.prio < 100) shot = { type: 'follow', until: 0, prio: 0 };
+    const front = sortedUnfin.slice(0, players.length <= 12 ? 5 : 8);
+    const spread = front.length > 1 ? (front[0].wy - front[front.length - 1].wy) * TILT : 0;
+    cam.tx = 0;
+    cam.tz = Math.min(fit, Math.max(fit * 0.8, (H - 250) / Math.max(220, spread)));
+    if (front.length) cam.twy = front.reduce((sum, p) => sum + p.wy, 0) / front.length + 70;
+    if ((shot.type === 'final' || shot.type === 'photo') && !(state === 'finale' && gameT - winnerGameT > 2.5)) {
+      cam.twy = course - 110;
+      cam.tz = fit;
+    } else if (shot.prio >= 70 && shot.prio < 100 && !reduceMotion) {
+      cam.twy = shot.fwy + 65;
+      cam.tz = fit;
     }
-    if (state === 'finale' && shot.prio >= 100 && gameT - winnerGameT > 2.5) {
-      // after the win settle to a mid-track overview of the stragglers
-      const sorted = players.filter(p => !p.finished);
-      if (sorted.length) {
-        let s = 0; for (const p of sorted) s += p.wy;
-        cam.twy = s / sorted.length; cam.tz = 0.8; cam.tx = 0;
-      }
-    }
-    const k = 1 - Math.pow(shot.prio >= 70 ? 0.86 : 0.95, fm);
+    const k = 1 - Math.pow(reduceMotion ? 0.96 : 0.92, fm);
     cam.wy += (cam.twy - cam.wy) * k;
     cam.x += (cam.tx - cam.x) * k;
     cam.zoom += (cam.tz - cam.zoom) * k;
   }
 
   // ---------- Render ----------
-  const TILT = 0.62;                                     // 2.5D: course compressed like the sibling arenas
   function wldY(wy) { return (cam.wy - wy) * TILT; }     // world→camera-local (y grows downward on screen)
-  function persp(sy) { return clamp(1 + sy / (H * 1.5), 0.6, 1.3); }  // nearer (lower) = bigger
+  function persp(sy) { return clamp(1 + sy / (H * 1.5), 0.72, 1.12); }  // nearer (lower) = bigger
   function prX(wx, sy) { return (wx - cam.x) * persp(sy); }           // converging-corridor projection
 
   function render() {
@@ -817,13 +870,13 @@
     const R = race, sc = R.sc;
 
     ctx.save();
-    ctx.translate(W * 0.5, H * 0.38);
+    ctx.translate(W * 0.5, H * 0.44);
     ctx.scale(cam.zoom, cam.zoom);
     const shakePx = trauma * trauma * 14;
-    if (shakePx > 0.3 && timeScale > 0.999) ctx.translate(rand(-shakePx, shakePx), rand(-shakePx, shakePx));
+    if (shakePx > 0.3 && timeScale > 0.999) ctx.translate(Math.sin(gameT * 71) * shakePx / cam.zoom, Math.cos(gameT * 83) * shakePx / cam.zoom);
 
-    const topWy = cam.wy + (H * 0.38 / cam.zoom) / TILT + 80;
-    const botWy = cam.wy - (H * 0.62 / cam.zoom) / TILT - 80;
+    const topWy = cam.wy + (H * 0.44 / cam.zoom) / TILT + 80;
+    const botWy = cam.wy - (H * 0.56 / cam.zoom) / TILT - 80;
 
     // 2.5D corridor: perspective floor + depth rungs + converging neon rails
     const TL = -R.trackW / 2, TR = R.trackW / 2;
@@ -832,7 +885,7 @@
     ctx.moveTo(prX(TL - 8, yT), yT); ctx.lineTo(prX(TR + 8, yT), yT);
     ctx.lineTo(prX(TR + 8, yB), yB); ctx.lineTo(prX(TL - 8, yB), yB);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(50,42,96,.32)'; ctx.fill();
+    ctx.fillStyle = turboT > 0 ? 'rgba(44,110,73,.34)' : 'rgba(36,59,79,.45)'; ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = 2;
     ctx.beginPath();
     for (let ry = Math.ceil(botWy / 150) * 150; ry < topWy; ry += 150) {
@@ -840,8 +893,8 @@
       ctx.moveTo(prX(TL, sy), sy); ctx.lineTo(prX(TR, sy), sy);
     }
     ctx.stroke();
-    ctx.strokeStyle = 'rgba(123,91,255,.6)'; ctx.lineWidth = 4;
-    ctx.shadowColor = 'rgba(123,91,255,.7)'; ctx.shadowBlur = 14;
+    ctx.strokeStyle = turboT > 0 ? '#b9ff66' : '#55c6d7'; ctx.lineWidth = 4;
+    ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 12;
     ctx.beginPath();
     ctx.moveTo(prX(TL - 8, yT), yT); ctx.lineTo(prX(TL - 8, yB), yB);
     ctx.moveTo(prX(TR + 8, yT), yT); ctx.lineTo(prX(TR + 8, yB), yB);
@@ -887,33 +940,21 @@
     // runners — painter order by wy (draw far/up first), LOD by count & quality
     const vis = [];
     for (const p of players) {
-      if (p.finished) continue;
+      if (p.finished && gameT - p.finT > 2.5) continue;
       if (p.wy < botWy || p.wy > topWy) continue;
       vis.push(p);
     }
     vis.sort((a, b) => b.wy - a.wy);
     const full = vis.length <= 30 && q === 0;
-    for (const p of vis) drawRunner(p, sc, full);
+    // Emoji rasterization spikes on mobile at 300 entrants. Spend detail on the front.
+    const effectBudget = q === 2 ? 6 : q === 1 ? 12 : 24;
+    vis.forEach((p, i) => drawRunner(p, sc, full, i < effectBudget));
     if (vis.length) {
       const v0 = vis[0], sy0 = wldY(v0.wy);
       window.__r = { vis: vis.length, camWy: Math.round(cam.wy), zoom: Math.round(cam.zoom * 100) / 100,
         p0: { wy: Math.round(v0.wy), sy: Math.round(sy0), sx: Math.round(prX(v0.wx, sy0)) },
         topWy: Math.round(topWy), botWy: Math.round(botWy), sprW: sprites[0] && sprites[0]._l };
     } else window.__r = { vis: 0, camWy: Math.round(cam.wy), topWy: Math.round(topWy), botWy: Math.round(botWy) };
-
-    // name tags: top-3 only (hard cap — 300 fillText is soup)
-    const sorted3 = sortedUnfin.slice(0, 3);
-    ctx.font = `900 ${Math.max(10, 12 * sc)}px sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    for (const p of sorted3) {
-      if (p.wy < botWy || p.wy > topWy) continue;
-      const sy = wldY(p.wy);
-      const X = prX(p.wx, sy);
-      const y = sy - 26 * sc * persp(sy);
-      const nm = dispName(p);
-      ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillText(nm, X + 1, y + 1);
-      ctx.fillStyle = '#fff'; ctx.fillText(nm, X, y);
-    }
 
     // floaters (world space)
     for (const f of floaters) {
@@ -928,6 +969,8 @@
     ctx.restore();
 
     // ---- screen space ----
+    fx.labels(finishOrder.concat(sortedUnfin).slice(0, 3), W, H,
+      p => ({ x: W / 2 + prX(p.wx, wldY(p.wy)) * cam.zoom, y: H * 0.44 + wldY(p.wy) * cam.zoom }), dispName);
     drawMinimap();
     for (const c of confetti) {
       ctx.save();
@@ -946,13 +989,13 @@
     if (polaroid) drawPolaroid();
     if (banner) {
       const bt = banner.t, d = banner.dur;
-      const pop = bt < 0.25 ? 1.6 - 2.4 * bt : 1;
+      const pop = reduceMotion ? 1 : bt < 0.25 ? 1.12 - 0.48 * bt : 1;
       const alpha = bt > d - 0.3 ? (d - bt) / 0.3 : 1;
       ctx.save();
       ctx.globalAlpha = clamp(alpha, 0, 1);
-      ctx.translate(W / 2, H * 0.24);
+      ctx.translate(W / 2, H < 500 ? 120 : H * 0.23);
       ctx.scale(pop, pop);
-      ctx.font = '900 42px sans-serif';
+      ctx.font = `900 ${Math.min(38, (W - 36) / Math.max(6, banner.text.length))}px sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(10,8,20,.85)';
       ctx.strokeText(banner.text, 0, 0);
@@ -1005,7 +1048,9 @@
     const y = wldY(b.y);
     const R = race, TL = -R.trackW / 2, TR = R.trackW / 2;
     const pfB = persp(y);
-    if (b.type === 'bumper') {
+    if (b.type === 'item') {
+      fx.itemGate(b, R.trackW, prX, wldY, persp, gameT);
+    } else if (b.type === 'bumper') {
       for (const pd of b.pads) {
         const py = pd.y != null ? pd.y : b.y, sy = wldY(py);
         drawBumperS(prX(pd.x, sy), sy, pd.r * persp(sy), pd.col, pd.lit);
@@ -1065,7 +1110,7 @@
         for (let s2 = -1; s2 <= 1; s2 += 2) {
           const ax = prX(s2 * R.trackW * 0.22, ay);
           ctx.beginPath();
-          if (b.vx) { ctx.moveTo(ax - aw, ay - ah); ctx.lineTo(ax, ay); ctx.lineTo(ax - aw, ay + ah); }
+          if (b.vx) { ctx.moveTo(ax - aw * Math.sign(b.vx), ay - ah); ctx.lineTo(ax, ay); ctx.lineTo(ax - aw * Math.sign(b.vx), ay + ah); }
           else { ctx.moveTo(ax - aw, ay + ah); ctx.lineTo(ax, ay - ah); ctx.lineTo(ax + aw, ay + ah); }
           ctx.stroke();
         }
@@ -1094,15 +1139,17 @@
     }
   }
 
-  function drawRunner(p, sc, full) {
-    const y = wldY(p.wy);
+  function drawRunner(p, sc, full, detailed) {
+    const ground = wldY(p.wy);
+    const y = ground - (p.hopT > 0 ? Math.sin(p.hopT / 0.65 * Math.PI) * 60 : 0);
     const depth = persp(y);
     const x = prX(p.wx, y);
     // ground shadow (2.5D anchor)
     ctx.globalAlpha = 0.28;
-    ctx.beginPath(); ctx.ellipse(x, y + 2 * depth, 8 * sc * depth, 2.8 * sc * depth, 0, 0, 7);
+    ctx.beginPath(); ctx.ellipse(x, ground + 2 * depth, 8 * sc * depth, 2.8 * sc * depth, 0, 0, 7);
     ctx.fillStyle = '#000'; ctx.fill();
     ctx.globalAlpha = 1;
+    fx.runner(p, x, y, depth * 1.25, gameT, detailed);
 
     if (!full) {
       // MID LOD: pre-rendered sprite (glow baked, zero canvas effects)
@@ -1125,7 +1172,7 @@
     }
 
     // FULL LOD stickman (≤30 visible only)
-    const s = (p.r / 10) * depth;
+    const s = (p.r / 10) * depth * 1.25;
     ctx.save();
     ctx.translate(x, y);
     if (p.state === 'tumble' || p.state === 'slip' || p.state === 'bounce') ctx.rotate(p.rot);
@@ -1165,7 +1212,8 @@
   function drawMinimap() {
     if (!race || state === 'menu') return;
     const R = race;
-    const mx = W - 26, mtop = 90, mh = H - 180;
+    if (W < 600 || H < 500) return; // The horizontal progress strip replaces it on phones.
+    const mx = W - 26, mtop = 110, mh = H - 300;
     ctx.fillStyle = 'rgba(18,16,38,.7)';
     ctx.fillRect(mx - 6, mtop - 6, 24, mh + 12);
     // band markers
@@ -1209,9 +1257,6 @@
     ctx.fillStyle = '#f4f2ec';
     ctx.fillRect(-pw / 2 - 12, -ph / 2 - 12, pw + 24, ph + 58);
     ctx.drawImage(c, -pw / 2, -ph / 2, pw, ph);
-    // red finish line overlay
-    ctx.strokeStyle = 'rgba(255,40,60,.8)'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(-pw / 2, -ph / 2 + ph * 0.3); ctx.lineTo(pw / 2, -ph / 2 + ph * 0.3); ctx.stroke();
     ctx.font = '900 20px sans-serif'; ctx.textAlign = 'center';
     if (t < 1.2) {
       ctx.fillStyle = `rgba(60,50,40,${0.5 + 0.5 * Math.sin(t * 12)})`;
@@ -1232,7 +1277,7 @@
     if (race) {
       const gridBack = race.gridBack;
       cam.twy = lerp(gridBack, 0, cdT / 2.9);
-      cam.tz = 0.7;
+      cam.tz = cameraFit() * 0.9;
       const k = 1 - Math.pow(0.94, dt * 60);
       cam.wy += (cam.twy - cam.wy) * k;
       cam.zoom += (cam.tz - cam.zoom) * k;
@@ -1255,7 +1300,7 @@
       } else {
         el.style.display = 'none';
         state = 'racing';
-        cam.tz = 1;
+        cam.tz = cameraFit();
         showBanner(T.racersStart(players.length), '#3fd0ff', 1.4, true);
         addTrauma(0.5);
         beep(220, 0.5, 'sawtooth', 0.2, 440);   // klaxon
@@ -1265,6 +1310,7 @@
 
   // ---------- Loop ----------
   const STEP = 1 / 60;
+  let accumulator = 0;
   let last = performance.now();
   let lastSizeCheck = 0;
   function step() {
@@ -1290,7 +1336,14 @@
 
     const t0 = performance.now();
     if (state === 'countdown') tickCountdown(realDt);
-    else if (state === 'racing' || state === 'finale') update(dt, fm);
+    else if (state === 'racing' || state === 'finale') {
+      // Every device takes identical physics steps, including the x3 tail finish.
+      accumulator += dt;
+      while (accumulator >= STEP && (state === 'racing' || state === 'finale')) {
+        update(STEP, 1);
+        accumulator -= STEP;
+      }
+    }
     else if (state === 'over') {
       for (let i = confetti.length - 1; i >= 0; i--) {
         const c = confetti[i]; c.x += c.vx * fm; c.y += c.vy * fm; c.vy += 0.12 * fm; c.rot += c.vr * fm;
@@ -1299,6 +1352,7 @@
       trauma *= Math.pow(0.9, fm);
     }
     render();
+    if (photoPending) { photoPending = false; capturePolaroid(); }
     // adaptive quality ladder
     frameMs = frameMs * 0.95 + (performance.now() - t0) * 0.05;
     q = frameMs > 10 ? 2 : frameMs > 7 ? 1 : (players.length > 150 && state === 'countdown') ? 1 : 0;
@@ -1318,13 +1372,16 @@
     const ws = document.getElementById('winScreen');
     document.getElementById('winName').textContent = winner ? dispName(winner) : '-';
     const list = document.getElementById('rankList');
+    const gap = finishOrder[1]?.finished ? finishOrder[1].finT - finishOrder[0].finT : null;
+    document.getElementById('raceSummary').textContent = T.raceRecap(leaderChanges) +
+      (gap !== null ? ' · ' + T.finishGap(gap.toFixed(2)) : '');
     list.innerHTML = '';
     const medals = ['🥇', '🥈', '🥉'];
     const cls = ['gold', 'silver', 'bronze'];
     finishOrder.forEach((p, idx) => {
       const li = document.createElement('li');
       li.className = 'rankItem' + (idx < 3 ? ' ' + cls[idx] : '');
-      const tme = p.finished ? `<span class="rankTime">${p.finT.toFixed(1)}s</span>` : `<span class="rankTime">DNF</span>`;
+      const tme = p.finished ? `<span class="rankTime">${p.finT.toFixed(2)}s</span>` : `<span class="rankTime">DNF</span>`;
       li.innerHTML =
         `<span class="rankNo">${idx < 3 ? medals[idx] : (idx + 1)}</span>` +
         `<span class="dot" style="background:${p.color}"></span>` +
@@ -1332,6 +1389,7 @@
       list.appendChild(li);
     });
     ws.classList.remove('hidden');
+    document.getElementById('raceBoard').hidden = true;
   }
 
   // ---------- Roster: type "name * 4", the add button queues that many ----------
@@ -1422,34 +1480,29 @@
     document.getElementById('startScreen').classList.add('hidden');
     document.getElementById('winScreen').classList.add('hidden');
     setupGame(playerCount);
-    updateBoomLabel();
+    document.getElementById('hud').hidden = false;
+    document.getElementById('raceBoard').hidden = false;
+    fx.updateHud(players.slice(0, 3), 0, race.course, T.autoRace, dispName);
+    nameInput.blur();
     cdT = 0; cdIdx = -1;
     state = 'countdown';
   }
   document.getElementById('startBtn').onclick = begin;
   document.getElementById('againBtn').onclick = begin;
-
-  // 🍌 banana rain: 3 per race, density-uniform (never leader-targeted — fairness optics)
-  const boomBtn = document.getElementById('boomBtn');
-  function updateBoomLabel() { boomBtn.textContent = T.bananaRain(boomLeft); boomBtn.style.opacity = boomLeft ? '1' : '.4'; }
-  boomBtn.onclick = () => {
-    if (state !== 'racing' || boomLeft <= 0) return;
-    const now = performance.now();
-    if (now - lastBoom < 12000) return;
-    const R = race;
-    const lead = players.filter(p => !p.finished).sort((a, b) => b.wy - a.wy)[0];
-    if (lead && lead.wy / R.course > 0.92) return;   // finish integrity — no chaos at the tape
-    lastBoom = now; boomLeft--;
-    updateBoomLabel();
-    // y-window holding ~90% of unfinished runners
-    const ys = players.filter(p => !p.finished).map(p => p.wy).sort((a, b) => a - b);
-    const y0 = ys[Math.floor(ys.length * 0.05)] || 0, y1 = ys[Math.floor(ys.length * 0.95)] || 0;
-    let slips = 0;
-    for (let i = 0; i < 16; i++) {
-      peels.push({ x: rand(-R.trackW / 2 + 20, R.trackW / 2 - 20), wy: rand(y0, y1 + 60), t: 0.6, alive: true });
-    }
-    showBanner(T.bananaRainBanner, '#ffe066', 1.3);
-    sfx('whistle', 300, d => beep(900, 0.3, 'sine', 0.14 * d, 600));
-    setTimeout(() => beep(300, 0.15, 'square', 0.12), 650);
+  document.getElementById('demoBtn').onclick = () => {
+    entries = [{ name: T.botName, count: 12 }]; renderRoster(); begin();
   };
+
+  // Automatic course hazard: announced rain lands across the pack, never a chosen name.
+  function bananaRain() {
+    const R = race;
+    const ys = players.filter(p => !p.finished).map(p => p.wy).sort((a, b) => a - b);
+    if (!ys.length || ys[ys.length - 1] > R.course * 0.92) return;
+    const y0 = ys[Math.floor(ys.length * 0.05)], y1 = ys[Math.floor(ys.length * 0.95)];
+    for (let i = 0; i < Math.min(45, 12 + Math.ceil(players.length / 8)); i++) {
+      peels.push({ x: rand(-R.trackW / 2 + 20, R.trackW / 2 - 20), wy: rand(y0 + 30, y1 + 180), t: 1, life: 7, alive: true });
+    }
+    showBanner(T.bananaRainBanner, '#ffe066', 1.5, true);
+    sfx('whistle', 300, d => beep(900, 0.3, 'sine', 0.14 * d, 600));
+  }
 })();

@@ -7,46 +7,36 @@
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let W = 0, H = 0, DPR = 1;
 
-  const TILT = 0.52;
-  const SD_TIME = 45;
-  const COLLAPSE_TIME = 75;
+  let TILT = 0.52;
+  const SD_TIME = 36;
+  const COLLAPSE_TIME = 56;
 
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
     W = window.innerWidth; H = window.innerHeight;
+    TILT = W < H ? 0.86 : 0.52;
     canvas.width = W * DPR; canvas.height = H * DPR;
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
-  // remap the whole world proportionally on viewport changes — the game may boot
-  // inside a not-yet-sized preview pane (tiny W/H) or be resized mid-match
-  function remapWorld() {
-    if (!arena || !arena.R0) return;
-    const oldCx = arena.cx, oldCy = arena.cy, oldR0 = arena.R0;
-    const cx = W / 2, cy = H * 0.54;
-    const R0n = Math.min(W * 0.42, H * 0.55);
-    if (!R0n || Math.abs(R0n - oldR0) < 1) return;
-    const k = R0n / oldR0;
-    const mv = o => { o.x = cx + (o.x - oldCx) * k; o.y = cy + (o.y - oldCy) * k; };
-    arena.cx = cx; arena.cy = cy;
-    arena.R0 = R0n; arena.R *= k;
-    arena.scale = clamp(R0n / 340, 0.55, 1.2);
-    for (const p of players) { mv(p); p.r *= k; }
-    for (const pl of pillars) { mv(pl); pl.r *= k; }
-    for (const g of ghosts) mv(g);
-    if (snack) mv(snack);
-    if (monster) {
-      mv(monster);
-      monster.r *= k; monster.baseR *= k;
-      monster.lureX = cx + (monster.lureX - oldCx) * k;
-      monster.lureY = cy + (monster.lureY - oldCy) * k;
-    }
-    cam = { x: W / 2, y: H * 0.5, zoom: cam.zoom, tx: W / 2, ty: H * 0.5, tz: cam.tz };
+  // A fixed arena keeps rotation and screen size out of the survival simulation.
+  function remapWorld() { if (arena.R0) frameArena(true); }
+  function frameArena(snap = false) {
+    const r = reduceMotion ? arena.R0 : Math.max(arena.R, arena.R0 * 0.4);
+    cam.tx = arena.cx; cam.ty = arena.cy;
+    cam.tz = Math.max(0.2, Math.min(1.8, (W - 36) / (2 * (r + 32)), (H - 220) / (r * 2 * TILT + 110)));
+    if (snap) { cam.x = cam.tx; cam.y = cam.ty; cam.zoom = cam.tz; }
   }
   window.addEventListener('resize', () => { resize(); remapWorld(); });
   resize();
 
-  function rand(a, b) { return a + Math.random() * (b - a); }
+  let randomSeed = 1;
+  function random() {
+    randomSeed = (Math.imul(randomSeed, 1664525) + 1013904223) >>> 0;
+    return randomSeed / 4294967296;
+  }
+  const fxRand = (a, b) => a + Math.random() * (b - a);
+  function rand(a, b) { return a + random() * (b - a); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function lerp(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }
   function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= 6.2832; while (d < -Math.PI) d += 6.2832; return d; }
@@ -118,7 +108,7 @@
   let eatEvents = [];               // gameT of eat events (rolling windows)
   let lastEatT = 0;
   let blackoutT = 0, blackoutUsed = false;
-  let snack = null, snacksLeft = 3, lastSnackThrow = -Infinity;
+  let snack = null, snacksLeft = 3, nextSnackT = 9;
   let snackCombo = 0, lastSnackIndex = -1;
   let snackUiReady = false;
 
@@ -137,9 +127,11 @@
   let banner = null, lastBannerT = 0;
   let hbT = 0;
   let runnerGlow = 12;
+  let nameTags = [];
   let cam = { x: 0, y: 0, zoom: 1, tx: 0, ty: 0, tz: 1 };
 
   function groundY(y) { return arena.cy + (y - arena.cy) * TILT; }
+  function viewY() { return W < H && H < 650 ? H * 0.44 : H * 0.5; }
   const aliveEl = document.getElementById('aliveCount');
 
   function addTrauma(a) {
@@ -166,8 +158,8 @@
   }
   function spawnParticles(x, y, color, n, spd) {
     for (let i = 0; i < n; i++) {
-      const a = rand(0, 6.2832), sp = rand(0.5, spd);
-      particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, r: rand(2, 5.5), color });
+      const a = fxRand(0, 6.2832), sp = fxRand(0.5, spd);
+      particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, r: fxRand(2, 5.5), color });
     }
     if (particles.length > 150) particles.splice(0, particles.length - 150);
   }
@@ -175,9 +167,9 @@
     const colors = ['#ffd23f', '#ff4d6d', '#25d366', '#7b5bff', '#3fd0ff', '#ff8a3d'];
     for (let i = 0; i < 160; i++) {
       confetti.push({
-        x: rand(0, W), y: rand(-H * 0.4, 0),
-        vx: rand(-2, 2), vy: rand(2, 6),
-        r: rand(4, 9), rot: rand(0, 6.28), vr: rand(-0.3, 0.3),
+        x: fxRand(0, W), y: fxRand(-H * 0.4, 0),
+        vx: fxRand(-2, 2), vy: fxRand(2, 6),
+        r: fxRand(4, 9), rot: fxRand(0, 6.28), vr: fxRand(-0.3, 0.3),
         color: colors[i % colors.length],
       });
     }
@@ -185,23 +177,26 @@
 
   // ---------- Setup ----------
   function setupGame(n) {
+    randomSeed = Math.floor(Math.random() * 4294967296);
     players = []; particles = []; floaters = []; confetti = []; ghosts = []; pillars = [];
     eliminationOrder = []; winner = null; trauma = 0; spin = 0;
     gameT = 0; suddenDeath = false; sdPillarT = 0; firstEatDone = false;
     faceOffDone = false; finalSlowmoDone = false; prevAliveN = 99;
     eatEvents = []; lastEatT = 0; blackoutT = 0; blackoutUsed = false;
-    snack = null; snacksLeft = 3; lastSnackThrow = -Infinity;
+    snack = null; snacksLeft = 3; nextSnackT = 9;
+    accumulator = 0;
+    document.getElementById('chaseLog').replaceChildren();
     snackCombo = 0; lastSnackIndex = -1;
     freezeT = 0; slowmo = { ts: 1, t: 0 }; timeScale = 1;
     flashT = 0; banner = null; hbT = 0; lastEatShake = -9;
 
-    const cx = W / 2, cy = H * 0.54;
-    const R = Math.min(W * 0.42, H * 0.55);
+    const cx = 0, cy = 0, R = 340;
     arena = { cx, cy, R, R0: R, scale: clamp(R / 340, 0.55, 1.2) };
-    cam = { x: W / 2, y: H * 0.5, zoom: 1, tx: W / 2, ty: H * 0.5, tz: 1 };
+    cam = { x: cx, y: cy, zoom: 1, tx: cx, ty: cy, tz: 1 };
+    frameArena(true);
 
-    // pillars: ring at 0.5R, 45/135/225/315° ± jitter (3 on small screens)
-    const nP = arena.scale < 0.7 ? 3 : 4;
+    // Four cover points are the same on every screen.
+    const nP = 4;
     for (let i = 0; i < nP; i++) {
       const a = (Math.PI / 4) + i * (6.2832 / nP) + rand(-0.26, 0.26);
       pillars.push({
@@ -211,12 +206,15 @@
     }
 
     const r = Math.max(12, Math.min(22, R / (n * 0.46)));
+    const seen = Object.create(null);
     for (let i = 0; i < n; i++) {
+      const name = (window.__names && window.__names[i]) || String(i + 1);
+      seen[name] = (seen[name] || 0) + 1;
       const ang = (i / n) * 6.2832 + rand(-0.15, 0.15);
       const rad = R * rand(0.55, 0.8);
       const hue = (i * (360 / n) + rand(-8, 8)) % 360;
       players.push({
-        id: i, name: (window.__names && window.__names[i]) || String(i + 1),
+        id: i, name, dup: seen[name],
         isNum: !(window.__names && window.__names[i]),
         color: `hsl(${hue}, 85%, 62%)`,
         x: cx + Math.cos(ang) * rad, y: cy + Math.sin(ang) * rad,
@@ -277,6 +275,12 @@
     p.alive = false;
     if (monster.lock === p.id) dropLock(monster);  // a corpse lock would stall the match forever
     if (!eliminationOrder.includes(p)) eliminationOrder.push(p);
+    const log = document.getElementById('chaseLog');
+    const row = document.createElement('div');
+    row.className = 'chaseOut'; row.style.borderColor = p.color;
+    row.textContent = T.eliminated(players.length - eliminationOrder.length + 1, dispName(p));
+    log.prepend(row);
+    while (log.children.length > 3) log.removeChild(log.lastChild);
     monster.eats++; monster.lungeAte++;
     monster.r = Math.min(monster.baseR * 1.8, monster.r * 1.05);
     monster.belly = 1;
@@ -301,7 +305,7 @@
       state = 'over';
       winner = alive[0] || eliminationOrder[eliminationOrder.length - 1];
       if (winner && !eliminationOrder.includes(winner)) eliminationOrder.push(winner);
-      cam.tx = W / 2; cam.ty = H * 0.5; cam.tz = 1;
+      frameArena();
       setTimeout(showWinner, 1400);
       burstConfetti(); fanfare(); addTrauma(0.6);
     }
@@ -364,24 +368,14 @@
     // face-off + final slow-mo
     if (state === 'playing' && aliveN === 2 && prevAliveN > 2 && !faceOffDone) {
       faceOffDone = true;
-      showBanner(`${T.finalTwo} ${dispName(aliveList[0])} VS ${dispName(aliveList[1])}`, '#ffd23f', 1.6, true);
+      showBanner(T.finalTwo, '#ffd23f', 1.6, true);
       setSlowmo(0.15, 0.8);
       beep(392, 0.18, 'triangle', 0.18); setTimeout(() => beep(523, 0.3, 'triangle', 0.18), 160);
     }
     prevAliveN = aliveN;
 
-    // camera
-    if (state === 'playing' && slowmo.t <= 0) {
-      if (aliveN <= 2) {
-        let fx = monster.x, fy = groundY(monster.y), cnt = 1;
-        for (const p of aliveList) { fx += p.x; fy += groundY(p.y); cnt++; }
-        fx /= cnt; fy /= cnt;
-        const mR = arena.R * 0.4;
-        cam.tx = clamp(fx, arena.cx - mR, arena.cx + mR);
-        cam.ty = clamp(fy, groundY(arena.cy) - mR * TILT, groundY(arena.cy) + mR * TILT);
-        cam.tz = 1.3;
-      } else { cam.tx = W / 2; cam.ty = H * 0.5; cam.tz = 1; }
-    }
+    // Keep the whole chase in view while the shrinking arena naturally zooms in.
+    frameArena();
     const ck = 1 - Math.pow(0.94, fm);
     cam.x += (cam.tx - cam.x) * ck; cam.y += (cam.ty - cam.y) * ck; cam.zoom += (cam.tz - cam.zoom) * ck;
 
@@ -390,13 +384,16 @@
     M.mouthPh += dt * (4 + (M.lastSpd || 0) * 1.5);   // chomping speeds up with movement
     if (M.belly > 0) M.belly = Math.max(0, M.belly - dt * 2.5);
 
-    // A thrown snack temporarily becomes the monster's highest-priority target.
+    if (!snack && snacksLeft > 0 && gameT >= nextSnackT) throwSnack();
+
+    // An automatic snack temporarily becomes the monster's highest-priority target.
     if (snack) {
       snack.t -= dt;
       snack.phase += dt * 6;
       if (snack.t <= 0) {
         addFloater(snack.x, groundY(snack.y) - 20, T.deliveryFail, '#b8b8d8', true);
         snack = null;
+        M.lureT = 0;
         snackCombo = 0;
       } else if (M.state === 'idle' && M.dizzyT <= 0 && M.tantrumT <= 0) {
         if (M.lock >= 0) dropLock(M);
@@ -406,9 +403,9 @@
       }
     }
 
-    // gluttony governor: schedule aliveN from N@8s → 2@50s
+    // Gluttony governor: N@8s → 2@38s, then the shrinking arena settles the duel.
     const N0 = players.length;
-    const schedT = a => 8 + 42 * (N0 - a) / Math.max(1, N0 - 2);
+    const schedT = a => 8 + 30 * (N0 - a) / Math.max(1, N0 - 2);
     const aheadSec = state === 'playing' ? schedT(aliveN) - gameT : 0;   // >0 = eating too fast
     const behindSec = -aheadSec;
     M.hunger = clamp(behindSec / 8, 0, 1);   // 0..1 speed boost driver
@@ -432,8 +429,8 @@
         if (target && target.alive && target.dashCd <= 0 && target.tripT <= 0 && target.consecSaves < 2) {
           let odds = gameT < 20 ? 0.55 : lerp(0.55, 0.30, (gameT - 20) / 25);
           if (suddenDeath) odds = 0.15;
-          if (Math.random() < odds) {
-            const ang = Math.atan2(target.y - M.y, target.x - M.x) + (Math.random() < 0.5 ? 1.7 : -1.7);
+          if (random() < odds) {
+            const ang = Math.atan2(target.y - M.y, target.x - M.x) + (random() < 0.5 ? 1.7 : -1.7);
             target.dashT = 0.3; target.dashCd = 3 * target.dashSkill * rand(0.8, 1.2);
             target.vx = Math.cos(ang) * runnerBase * 2.2 * target.spd;
             target.vy = Math.sin(ang) * runnerBase * 2.2 * target.spd;
@@ -459,7 +456,7 @@
           }
           // a dodged lunge usually breaks the monster's interest — an escape is a real escape,
           // not a stay of execution (50% on first whiff, always on second; final duel excluded)
-          if (target && target.alive && aliveN > 2 && (M.whiffsOnLock >= 2 || Math.random() < 0.5)) {
+          if (target && target.alive && aliveN > 2 && (M.whiffsOnLock >= 2 || random() < 0.5)) {
             addFloater(target.x, groundY(target.y) - 62, T.survived, '#3dff8a', true);
             M.lockPrev = target.id; M.lockRepeat = 2;   // next pick must be someone else
             dropLock(M);
@@ -492,7 +489,7 @@
         const cand = sorted.filter(p => !(p.id === M.lockPrev && M.lockRepeat >= 2));
         const pool = cand.length ? cand : sorted;
         pool.forEach((p, i) => tot += w[i] || 1);
-        let roll = Math.random() * tot, pick = pool[0];
+        let roll = random() * tot, pick = pool[0];
         pool.forEach((p, i) => { roll -= w[i] || 1; if (roll > 0 && pool[i + 1]) pick = pool[i + 1]; });
         if (pick) {
           M.lock = pick.id; M.lockT = 0; M.coverT = 0; M.whiffsOnLock = 0; M.minLockDist = 1e9;
@@ -516,7 +513,7 @@
         M.coverT = covered ? M.coverT + dt : 0;
         // a closer snack crossing its path distracts the monster — targets keep rotating,
         // so being locked is a scare, not a death sentence (off in the final duel)
-        if (aliveN > 2 && Math.random() < dt * 1.5) {
+        if (aliveN > 2 && random() < dt * 1.5) {
           let closest = null, cd2 = 1e9;
           for (const q of aliveList) {
             if (q.id === M.lock) continue;
@@ -542,7 +539,7 @@
         else if (gameT > 6 && M.lock === target.id && d < (M.r + target.r) * (2.6 + M.hunger * 1.2) && M.state === 'idle') {
           // eat-cadence guards (gap scales with headcount — a 30-runner match needs ~1.3s cadence)
           eatEvents = eatEvents.filter(t2 => gameT - t2 < 3);
-          const minGap = Math.min(2.5, 0.9 * 42 / Math.max(1, N0 - 2)) * (enr ? 0.5 : 1);
+          const minGap = Math.min(2.5, 0.9 * 30 / Math.max(1, N0 - 2)) * (enr ? 0.5 : 1);
           const cadenceOk = gameT - lastEatT > minGap && (gameT > 20 || eatEvents.length < 2);
           if (cadenceOk) {
             M.state = 'windup'; M.msT = enr ? 0.18 : 0.30;
@@ -569,7 +566,7 @@
       aimX = target.x + target.vx * lead; aimY = target.y + target.vy * lead;
     } else if (M.state === 'idle') {
       // wander toward arena center-ish
-      if (Math.random() < 0.01) M.h += rand(-1, 1);
+      if (random() < 0.01) M.h += rand(-1, 1);
       aimX = arena.cx + Math.cos(M.h) * 50; aimY = arena.cy + Math.sin(M.h) * 50;
     }
     M.lastSpd = mSpd;
@@ -627,7 +624,7 @@
             if (players.filter(q => q.alive).length === 1 && !finalSlowmoDone) {
               finalSlowmoDone = true;
               setSlowmo(0.3, 0.9);
-              cam.tx = M.x; cam.ty = groundY(M.y); cam.tz = 1.5;
+              frameArena();
             }
             if (state !== 'playing') break;                 // win decided — stop the jaws
             if (M.lungeAte >= 3) break;
@@ -703,7 +700,7 @@
           if (p.veerRoll > 0.9) {
             p.veerRoll = 0;
             const odds = lerp(0.12, 0.22, gameT / 30);
-            if (Math.random() < odds) { p.veerT = 0.25; p.veerDir = Math.random() < 0.5 ? 1 : -1; addFloater(p.x, groundY(p.y) - 40, '!?', '#ffb03d'); }
+            if (random() < odds) { p.veerT = 0.25; p.veerDir = random() < 0.5 ? 1 : -1; addFloater(p.x, groundY(p.y) - 40, '!?', '#ffb03d'); }
           }
         }
         let ang = Math.atan2(sy2, sx2);
@@ -726,7 +723,7 @@
             let odds = 0.10 * p.clumsy;
             if (aliveN <= 4) odds *= 0.5;
             if (aliveN === 2 && M.state !== 'lunge') odds = 0;
-            if (trippingNow < 2 && Math.random() < odds) {
+            if (trippingNow < 2 && random() < odds) {
               p.tripT = 0.5;
               addFloater(p.x, groundY(p.y) - 36, T.oops, '#ffb03d', true);
               spawnParticles(p.x, groundY(p.y), 'rgba(180,170,160,0.7)', 6, 2);
@@ -777,7 +774,7 @@
         if (p.trail[i].life <= 0) p.trail.splice(i, 1);
       }
       // sweat drops when locked
-      if (isLocked && Math.random() < dt * 2) {
+      if (isLocked && random() < dt * 2) {
         particles.push({ x: p.x + rand(-6, 6), y: groundY(p.y) - 30 * (p.r / 12), vx: rand(-0.5, 0.5), vy: -1.2, life: 0.8, r: 2.5, color: 'rgba(120,200,255,0.9)' });
       }
     }
@@ -809,8 +806,9 @@
     updateGhosts(dt, fm);
 
     trauma *= Math.pow(0.9, fm);
-    if (aliveEl._v !== aliveN) { aliveEl._v = aliveN; aliveEl.textContent = aliveN; }
-    window.__st = { t: Math.round(gameT * 10) / 10, aliveNF: aliveN, state, sd: suddenDeath, eats: monster.eats, lock: monster.lock };
+    const remaining = players.filter(p => p.alive).length;
+    if (aliveEl._v !== remaining) { aliveEl._v = remaining; aliveEl.textContent = remaining; }
+    window.__st = { t: Math.round(gameT * 10) / 10, aliveNF: remaining, state, sd: suddenDeath, eats: monster.eats, lock: monster.lock };
   }
 
   function dropLock(M) { M.lock = -1; M.lockT = 0; M.coverT = 0; }
@@ -906,12 +904,23 @@
     }
     ctx.restore();
 
-    ctx.font = `900 ${Math.max(10, 8.5 * s)}px sans-serif`;
+    if (players.filter(q => q.alive).length > 8 && !isLocked) return;
+    ctx.font = `900 ${Math.max(12 / cam.zoom, 8.5 * s)}px sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const label = dispName(p), half = ctx.measureText(label).width / 2;
+    const labelX = clamp(sx, cam.x + (10 - W / 2) / cam.zoom + half, cam.x + (W / 2 - 10) / cam.zoom - half);
+    const lineHeight = 22 / cam.zoom;
+    let labelY = sy - 30 * s;
+    for (let n = 0; n < 8 && nameTags.some(tag => Math.abs(tag.x - labelX) < tag.half + half + 6 / cam.zoom && Math.abs(tag.y - labelY) < lineHeight); n++) labelY -= lineHeight;
+    nameTags.push({ x: labelX, y: labelY, half });
+    if (labelY !== sy - 30 * s) {
+      ctx.strokeStyle = p.color; ctx.lineWidth = 1 / cam.zoom;
+      ctx.beginPath(); ctx.moveTo(sx, sy - 26 * s); ctx.lineTo(labelX, labelY); ctx.stroke();
+    }
     ctx.fillStyle = 'rgba(0,0,0,.55)';
-    ctx.fillText(p.name, sx + 1, sy - 30 * s + 1);
+    ctx.fillText(label, labelX + 1, labelY + 1);
     ctx.fillStyle = '#fff';
-    ctx.fillText(p.name, sx, sy - 30 * s);
+    ctx.fillText(label, labelX, labelY);
   }
 
   function drawMonster() {
@@ -1002,11 +1011,11 @@
       }
     }
     // tantrum steam
-    if (M.tantrumT > 0 && Math.random() < 0.4) {
-      particles.push({ x: M.x + rand(-mr, mr) * 0.5, y: gy - mr * 1.4, vx: rand(-0.3, 0.3), vy: -1.5, life: 0.7, r: rand(3, 6), color: 'rgba(220,220,220,0.6)' });
+    if (M.tantrumT > 0 && fxRand(0, 1) < 0.4) {
+      particles.push({ x: M.x + fxRand(-mr, mr) * 0.5, y: gy - mr * 1.4, vx: fxRand(-0.3, 0.3), vy: -1.5, life: 0.7, r: fxRand(3, 6), color: 'rgba(220,220,220,0.6)' });
     }
     // hunger drool
-    if (M.hunger > 0.5 && Math.random() < 0.15) {
+    if (M.hunger > 0.5 && fxRand(0, 1) < 0.15) {
       particles.push({ x: M.x + Math.cos(M.h) * mr * 0.8, y: gy - mr * 0.3, vx: 0, vy: 0.8, life: 0.6, r: 2.5, color: 'rgba(180,240,255,0.8)' });
     }
     ctx.restore();
@@ -1098,18 +1107,20 @@
 
   // ---------- Render ----------
   function render() {
+    nameTags = [];
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, W, H);
     const bg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H)*0.7);
     bg.addColorStop(0, '#141230'); bg.addColorStop(1, '#07070f');
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
 
     ctx.save();
-    ctx.translate(W * 0.5, H * 0.5);
+    ctx.translate(W * 0.5, viewY());
     ctx.scale(cam.zoom, cam.zoom);
     ctx.translate(-cam.x, -cam.y);
     const shakePx = trauma * trauma * 14;
     if (shakePx > 0.3 && timeScale > 0.999 && cam.zoom < 1.001) {
-      ctx.translate(rand(-shakePx, shakePx), rand(-shakePx, shakePx));
+      ctx.translate(Math.sin(gameT * 71) * shakePx / cam.zoom, Math.cos(gameT * 83) * shakePx / cam.zoom);
     }
 
     const { cx, cy, R } = arena;
@@ -1196,7 +1207,7 @@
       ctx.fillRect(0, 0, W, H);
       ctx.save();
       ctx.globalAlpha = ba;
-      const proj = (wx, wy) => ({ x: (wx - cam.x) * cam.zoom + W * 0.5, y: (wy - cam.y) * cam.zoom + H * 0.5 });
+      const proj = (wx, wy) => ({ x: (wx - cam.x) * cam.zoom + W * 0.5, y: (wy - cam.y) * cam.zoom + viewY() });
       for (const p of players) {
         if (!p.alive) continue;
         const s = p.r / 12;
@@ -1246,13 +1257,13 @@
     }
     if (banner) {
       const bt = banner.t, d = banner.dur;
-      const pop = bt < 0.25 ? 1.6 - 2.4 * bt : 1;
+      const pop = reduceMotion ? 1 : bt < 0.25 ? 1.12 - 0.48 * bt : 1;
       const alpha = bt > d - 0.3 ? (d - bt) / 0.3 : 1;
       ctx.save();
       ctx.globalAlpha = clamp(alpha, 0, 1);
       ctx.translate(W / 2, H * 0.30);
       ctx.scale(pop, pop);
-      ctx.font = '900 44px sans-serif';
+      ctx.font = `900 ${Math.min(38, (W - 36) / Math.max(6, banner.text.length))}px sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(10,8,20,.85)';
       ctx.strokeText(banner.text, 0, 0);
@@ -1294,6 +1305,7 @@
 
   // ---------- Loop (RAF + Worker, hidden-tab safe) ----------
   const STEP = 1 / 60;
+  let accumulator = 0;
   let last = performance.now();
   let lastSizeCheck = 0;
   function step() {
@@ -1320,7 +1332,12 @@
     const fm = dt * 60;
 
     if (state === 'countdown') tickCountdown(realDt);
-    else if (state === 'playing') update(dt, fm);
+    else if (state === 'playing') {
+      accumulator += dt;
+      while (accumulator >= STEP && state === 'playing') {
+        update(STEP, 1); accumulator -= STEP;
+      }
+    }
     else if (state === 'over') {
       // keep the scene alive: monster mouth idles, winner flees happily, effects decay
       if (monster) { monster.mouthPh += dt * 4; if (monster.belly > 0) monster.belly = Math.max(0, monster.belly - dt * 2.5); }
@@ -1379,6 +1396,7 @@
       list.appendChild(li);
     });
     ws.classList.remove('hidden');
+    document.getElementById('chaseFeed').hidden = true;
   }
 
   // ---------- UI ----------
@@ -1456,7 +1474,7 @@
   } catch (e) { entries = []; }
   renderRoster();
 
-  const dispName = p => p.isNum ? T.numName(p.name) : p.name;
+  const dispName = p => (p.isNum ? T.numName(p.name) : p.name) + (p.dup > 1 ? `(${p.dup})` : '');
   const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   function begin() {
@@ -1470,44 +1488,41 @@
     document.getElementById('startScreen').classList.add('hidden');
     document.getElementById('winScreen').classList.add('hidden');
     setupGame(playerCount);
+    document.getElementById('hud').hidden = false;
+    document.getElementById('chaseFeed').hidden = false;
+    nameInput.blur();
     cdT = 0; cdIdx = -1;
     state = 'countdown';
   }
   document.getElementById('startBtn').onclick = begin;
   document.getElementById('againBtn').onclick = begin;
 
-  // Crowd interference: three snack throws that bend the chase into a joke.
-  const boomBtn = document.getElementById('boomBtn');
+  document.getElementById('demoBtn').onclick = () => {
+    entries = [{ name: T.botName, count: 12 }]; renderRoster(); begin();
+  };
+
+  // Delivery and chase commentary are observation-only; no input changes the match.
+  const snackStatus = document.getElementById('snackStatus');
   const snackComboEl = document.getElementById('snackCombo');
-  const SNACK_COOLDOWN = 3200;
+  const chaseHeadline = document.getElementById('chaseHeadline');
   function updateSnackUi() {
-    const now = performance.now();
-    const cooldown = Math.max(0, SNACK_COOLDOWN - (now - lastSnackThrow));
-    let label = T.throwSnack(snacksLeft);
-    if (state === 'playing' && snack) label = `${snack.emoji} ${T.delivering}`;
-    else if (state === 'playing' && snacksLeft <= 0) label = T.snackSoldOut;
-    else if (state === 'playing' && cooldown > 0) label = `⏳ ${T.seconds(Math.ceil(cooldown / 1000))}`;
-    const disabled = state !== 'playing' || !!snack || snacksLeft <= 0 || cooldown > 0;
-    if (boomBtn.textContent !== label) boomBtn.textContent = label;
-    if (boomBtn.disabled !== disabled) boomBtn.disabled = disabled;
-    const ariaLabel = disabled && cooldown > 0
-      ? T.snackCooldown(Math.ceil(cooldown / 1000))
-      : label.replace('…', '');
-    if (boomBtn.getAttribute('aria-label') !== ariaLabel) boomBtn.setAttribute('aria-label', ariaLabel);
-    if (snackCombo >= 2 && state === 'playing') {
-      const comboLabel = T.snackCombo(snackCombo);
-      if (snackComboEl.hidden) snackComboEl.hidden = false;
-      if (snackComboEl.textContent !== comboLabel) snackComboEl.textContent = comboLabel;
-    } else {
-      if (!snackComboEl.hidden) snackComboEl.hidden = true;
-    }
+    const label = snack ? `${snack.emoji} ${T.delivering}` : snacksLeft > 0
+      ? T.autoSnack(Math.max(0, Math.ceil(nextSnackT - gameT))) : T.snackSoldOut;
+    if (snackStatus.textContent !== label) snackStatus.textContent = label;
+    snackComboEl.hidden = snackCombo < 2 || state !== 'playing';
+    if (!snackComboEl.hidden) snackComboEl.textContent = T.snackCombo(snackCombo);
+    const target = monster && players[monster.lock];
+    const finalists = players.filter(p => p.alive);
+    const headline = winner ? '🏆 ' + dispName(winner) : finalists.length === 2
+      ? `${dispName(finalists[0])} VS ${dispName(finalists[1])}`
+      : target?.alive ? T.chaseTarget(dispName(target)) : T.chaseReady;
+    if (chaseHeadline.textContent !== headline) chaseHeadline.textContent = headline;
   }
   function throwSnack() {
-    const now = performance.now();
-    if (state !== 'playing' || snack || snacksLeft <= 0 || now - lastSnackThrow < SNACK_COOLDOWN) return;
-    lastSnackThrow = now;
+    if (state !== 'playing' || snack || snacksLeft <= 0 || gameT < nextSnackT) return;
+    nextSnackT = gameT + 11;
     snacksLeft--;
-    let idx = Math.floor(Math.random() * SNACKS.length);
+    let idx = Math.floor(random() * SNACKS.length);
     if (idx === lastSnackIndex) idx = (idx + 1) % SNACKS.length;
     lastSnackIndex = idx;
     const item = SNACKS[idx];
@@ -1537,19 +1552,13 @@
         p.vz = Math.max(p.vz, 140);
       }
     }
-    if (monster && monster.state === 'idle' && timeScale > 0.999) {
+    // Queue the lure even during a lunge; the next idle beat must notice the delivery.
+    if (monster) {
       dropLock(monster);
-      monster.lureT = 0.25; monster.lureX = bx; monster.lureY = by;
+      monster.lureT = 6; monster.lureX = bx; monster.lureY = by;
     }
     updateSnackUi();
   }
-  boomBtn.onclick = throwSnack;
-  document.addEventListener('keydown', ev => {
-    const typing = /^(INPUT|TEXTAREA)$/.test(ev.target.tagName);
-    const otherButton = ev.target.tagName === 'BUTTON' && ev.target !== boomBtn;
-    if (ev.code !== 'Space' || ev.repeat || typing || otherButton) return;
-    if (state === 'playing') { ev.preventDefault(); throwSnack(); }
-  });
   snackUiReady = true;
   updateSnackUi();
 })();

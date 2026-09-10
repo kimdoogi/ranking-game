@@ -11,7 +11,7 @@
   gtag('config', 'G-TNX16BV3PS');
 </script>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>大食いモンスターから大脱走 👾 名前を入れて回すランダム抽選 — あみだくじ・ルーレット代わり | 無料ブラウザゲーム</title>
 
 <!-- SEO -->
@@ -69,7 +69,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="monster-chase.css" />
+<link rel="stylesheet" href="monster-chase.css?v=5706530b83" />
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -79,12 +79,13 @@
   <button id="muteBtn" type="button" aria-pressed="false" aria-label="ミュート" title="ミュート">🔊</button>
 </div>
 
-<div id="hud">
+<div id="hud" hidden>
   <div class="pill">🏃 残り <span class="big" id="aliveCount">0</span></div>
-  <button id="boomBtn" type="button" aria-keyshortcuts="Space" aria-describedby="snackHelp">🍔 夜食投げ ×3</button>
+  <div id="snackStatus" class="pill"></div>
 </div>
 <div id="snackCombo" role="status" aria-live="polite" hidden></div>
-<span id="snackHelp" class="srOnly">試合中にボタンかスペースキーを押すと、モンスターに夜食を投げます。1試合で3回まで使えます。</span>
+<section id="chaseFeed" hidden><strong id="chaseHeadline"></strong>
+<div id="chaseLog" role="log" aria-live="polite" aria-relevant="additions"></div></section>
 
 <div id="countdown"></div>
 
@@ -93,6 +94,7 @@
   <div class="subtitle">食べられるな！最後の生存者が優勝 🏆
     <span class="tagline">あみだくじ・ルーレット代わりの名前抽選 — 罰ゲームや順番決めに</span>
   </div>
+<p class="arenaIntro">🍔 夜食が降ると追跡も大逆転！<br>自動配達とギリギリの逃走劇。最後まで残る名前は？</p>
   <div class="control">
     <label>参加者を追加 <span class="hint"><b>名前 * 4</b> の形で入力して追加 · 重複OK</span></label>
     <div class="addRow">
@@ -109,6 +111,7 @@
     <div class="lobbyHint" id="lobbyHint"></div>
   </div>
   <button class="playBtn" id="startBtn">▶ スタート！</button>
+<button class="demoBtn" id="demoBtn" type="button">12人で観戦する</button>
 </div>
 
 <div class="overlay hidden" id="winScreen">
@@ -121,6 +124,11 @@
 
 <script>
 window.T = {
+  autoSnack: n => `🍔 自動配達まで${n}秒`,
+  chaseTarget: name => `🎯 ${name}、逃げて！`,
+  chaseReady: '👀 次のターゲットを探している…',
+  eliminated: (n, name) => `${n}位 · ${name} パクッ！`,
+  botName: 'ボット',
   mute: 'ミュート',
   unmute: 'ミュート解除',
   snack1: '深夜2時のハンバーガー', snack1r: 'ダイエットは明日から！',
@@ -144,11 +152,8 @@ window.T = {
   bonk: 'ゴツン〜',
   oops: 'おっと！',
   monsterWoke: 'モンスターが目を覚ました！',
-  throwSnack: n => `🍔 夜食投げ ×${n}`,
   delivering: '配達中…',
   snackSoldOut: '🍽️ 夜食完売',
-  seconds: n => `${n}秒`,
-  snackCooldown: n => `次の夜食投げまで ${n} 秒`,
   delivered: '配達！',
   rosterEmpty: 'まだ参加者がいません',
   hintEmpty: '名前を入力して追加を押してください',
@@ -157,6 +162,6 @@ window.T = {
   numName: n => n + '番'
 };
 </script>
-<script src="monster-chase.js"></script>
+<script src="monster-chase.js?v=cf396a66a5"></script>
 </body>
 </html>

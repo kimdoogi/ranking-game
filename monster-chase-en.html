@@ -11,7 +11,7 @@
   gtag('config', 'G-TNX16BV3PS');
 </script>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Monster Munch Escape 👾 Random Survivor Picker — Ladder Game & Roulette Alternative | Free Browser Game</title>
 
 <!-- SEO -->
@@ -69,7 +69,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="monster-chase.css" />
+<link rel="stylesheet" href="monster-chase.css?v=5706530b83" />
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -79,12 +79,13 @@
   <button id="muteBtn" type="button" aria-pressed="false" aria-label="Mute" title="Mute">🔊</button>
 </div>
 
-<div id="hud">
+<div id="hud" hidden>
   <div class="pill">🏃 Left <span class="big" id="aliveCount">0</span></div>
-  <button id="boomBtn" type="button" aria-keyshortcuts="Space" aria-describedby="snackHelp">🍔 Throw snack ×3</button>
+  <div id="snackStatus" class="pill"></div>
 </div>
 <div id="snackCombo" role="status" aria-live="polite" hidden></div>
-<span id="snackHelp" class="srOnly">During a match, press the button or the space key to throw a snack at the monster. Three uses per match.</span>
+<section id="chaseFeed" hidden><strong id="chaseHeadline"></strong>
+<div id="chaseLog" role="log" aria-live="polite" aria-relevant="additions"></div></section>
 
 <div id="countdown"></div>
 
@@ -93,6 +94,7 @@
   <div class="subtitle">Don't get eaten! The last survivor wins 🏆
     <span class="tagline">A random name picker instead of a ladder game or roulette wheel — penalties and turn order</span>
   </div>
+<p class="arenaIntro">🍔 Snack drops turn the chase around!<br>Automatic deliveries, narrow escapes. Who survives the final chase?</p>
   <div class="control">
     <label>Add players <span class="hint">type <b>name * 4</b> and hit Add · duplicates OK</span></label>
     <div class="addRow">
@@ -109,6 +111,7 @@
     <div class="lobbyHint" id="lobbyHint"></div>
   </div>
   <button class="playBtn" id="startBtn">▶ Start!</button>
+<button class="demoBtn" id="demoBtn" type="button">Watch 12 runners</button>
 </div>
 
 <div class="overlay hidden" id="winScreen">
@@ -121,6 +124,11 @@
 
 <script>
 window.T = {
+  autoSnack: n => `🍔 Auto drop in ${n}s`,
+  chaseTarget: name => `🎯 Run, ${name}!`,
+  chaseReady: '👀 Looking for the next target…',
+  eliminated: (n, name) => `#${n} · ${name} — MUNCH!`,
+  botName: 'Bot',
   mute: 'Mute',
   unmute: 'Unmute',
   snack1: '2 a.m. burger', snack1r: 'The diet starts tomorrow!',
@@ -144,11 +152,8 @@ window.T = {
   bonk: 'BONK~',
   oops: 'Oops!',
   monsterWoke: 'The monster woke up!',
-  throwSnack: n => `🍔 Throw snack ×${n}`,
   delivering: 'Delivering…',
   snackSoldOut: '🍽️ Snacks sold out',
-  seconds: n => `${n}s`,
-  snackCooldown: n => `${n}s until the next snack throw`,
   delivered: 'Delivered!',
   rosterEmpty: 'No players yet',
   hintEmpty: 'Type a name and hit Add',
@@ -157,6 +162,6 @@ window.T = {
   numName: n => '#' + n
 };
 </script>
-<script src="monster-chase.js"></script>
+<script src="monster-chase.js?v=cf396a66a5"></script>
 </body>
 </html>

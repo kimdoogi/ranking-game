@@ -11,7 +11,7 @@
   gtag('config', 'G-TNX16BV3PS');
 </script>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>먹보 괴물 대탈주 👾 이름 넣고 돌리는 랜덤 생존 뽑기 | 무료 브라우저 미니게임</title>
 
 <!-- SEO -->
@@ -69,7 +69,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="monster-chase.css" />
+<link rel="stylesheet" href="monster-chase.css?v=5706530b83" />
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -79,12 +79,13 @@
   <button id="muteBtn" type="button" aria-pressed="false" aria-label="소리 끄기" title="소리 끄기">🔊</button>
 </div>
 
-<div id="hud">
+<div id="hud" hidden>
   <div class="pill">🏃 남은 인원 <span class="big" id="aliveCount">0</span></div>
-  <button id="boomBtn" type="button" aria-keyshortcuts="Space" aria-describedby="snackHelp">🍔 야식 투척 ×3</button>
+  <div id="snackStatus" class="pill"></div>
 </div>
 <div id="snackCombo" role="status" aria-live="polite" hidden></div>
-<span id="snackHelp" class="srOnly">경기 중 버튼이나 스페이스 키를 누르면 괴물에게 야식을 던집니다. 한 경기에서 3번 사용할 수 있습니다.</span>
+<section id="chaseFeed" hidden><strong id="chaseHeadline"></strong>
+<div id="chaseLog" role="log" aria-live="polite" aria-relevant="additions"></div></section>
 
 <div id="countdown"></div>
 
@@ -93,6 +94,7 @@
   <div class="subtitle">먹히지 마라! 마지막 생존자가 우승 🏆
     <span class="tagline">사다리게임·룰렛 대신 쓰는 이름 뽑기 — 벌칙·순서 정하기</span>
   </div>
+<p class="arenaIntro">🍔 야식이 떨어지면 추격전도 반전!<br>자동 야식 배달과 최후의 추격전, 끝까지 살아남을 이름은?</p>
   <div class="control">
     <label>참가자 추가 <span class="hint"><b>이름 * 4</b> 처럼 입력하고 추가하기 · 중복 OK</span></label>
     <div class="addRow">
@@ -109,6 +111,7 @@
     <div class="lobbyHint" id="lobbyHint"></div>
   </div>
   <button class="playBtn" id="startBtn">▶ 시작!</button>
+<button class="demoBtn" id="demoBtn" type="button">12명으로 구경하기</button>
 </div>
 
 <div class="overlay hidden" id="winScreen">
@@ -121,6 +124,11 @@
 
 <script>
 window.T = {
+  autoSnack: n => `🍔 자동 배달 ${n}초`,
+  chaseTarget: name => `🎯 ${name} 도망쳐!`,
+  chaseReady: '👀 다음 타깃을 찾는 중…',
+  eliminated: (n, name) => `${n}위 · ${name} 냠!`,
+  botName: '봇',
   mute: '소리 끄기',
   unmute: '소리 켜기',
   snack1: '새벽 2시 햄버거', snack1r: '다이어트는 내일부터!',
@@ -144,11 +152,8 @@ window.T = {
   bonk: '띵~',
   oops: '아이쿠!',
   monsterWoke: '괴물이 깨어났다!',
-  throwSnack: n => `🍔 야식 투척 ×${n}`,
   delivering: '배달 중…',
   snackSoldOut: '🍽️ 야식 완판',
-  seconds: n => `${n}초`,
-  snackCooldown: n => `야식 투척 재사용까지 ${n}초`,
   delivered: '배달!',
   rosterEmpty: '아직 참가자가 없어요',
   hintEmpty: '이름을 입력하고 추가하기를 누르세요',
@@ -157,6 +162,6 @@ window.T = {
   numName: n => n + '번'
 };
 </script>
-<script src="monster-chase.js"></script>
+<script src="monster-chase.js?v=cf396a66a5"></script>
 </body>
 </html>
