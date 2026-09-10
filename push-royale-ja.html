@@ -69,7 +69,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="push-royale.css" />
+<link rel="stylesheet" href="push-royale.css?v=2c1728fe18" />
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -83,6 +83,7 @@
   <div class="pill">🎯 残り <span class="big" id="aliveCount">0</span></div>
   <button id="shakeBtn">💥 シェイク！</button>
 </div>
+<div id="specialFeed" role="status" aria-live="polite" aria-relevant="additions"></div>
 
 <div id="countdown"></div>
 
@@ -109,13 +110,22 @@
   <button class="playBtn" id="startBtn">▶ スタート！</button>
 </div>
 
-<div class="overlay hidden" id="winScreen">
-  <div class="crown">👑</div>
-  <div style="font-weight:800;color:#b8b8d8;letter-spacing:2px;">WINNER</div>
-  <div id="winName">-</div>
-  <ul class="rankList" id="rankList"></ul>
-  <button class="playBtn win" id="againBtn">🔄 もう一回</button>
+<div class="overlay hidden royaleWin" id="winScreen">
+  <div class="winnerLayout">
+    <div class="winnerHero">
+      <div class="winnerEyebrow">👑 WINNER</div>
+      <canvas id="winnerPortrait" role="img"></canvas>
+      <div id="winName">-</div>
+    </div>
+    <section class="winnerBoard" aria-labelledby="rankTitle">
+      <h2 id="rankTitle">最終ランキング</h2>
+      <ol class="rankList" id="rankList"></ol>
+      <div class="winnerActions">
+        <button class="playBtn win" id="againBtn">🔄 もう一回</button>
   <button class="shareBtn" id="shareBtn" type="button">📸 結果カードを共有</button>
+      </div>
+    </section>
+  </div>
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
@@ -134,6 +144,11 @@ window.T = {
   finalRound: '決勝！',
   save: 'セーフ！',
   special: '必殺技！',
+  spSpin: '竜巻ホームラン',
+  spDash: 'ロケット突進',
+  spBolt: '連鎖ライトニング',
+  spQuake: '大地クラッシュ',
+  winnerRoar: name => `${name}の勝利の雄叫び`,
   cardTitle: '🏆 プッシュバトルロイヤル',
   cardPlayers: n => `${n}人参加`,
   cardLast: '💀 ビリ',
@@ -151,6 +166,7 @@ window.T = {
   numName: n => n + '番'
 };
 </script>
-<script src="push-royale.js"></script>
+<script src="push-royale-fx.js?v=d7459f0745"></script>
+<script src="push-royale.js?v=fb117c73bd"></script>
 </body>
 </html>

@@ -33,6 +33,22 @@
   }
   #shakeBtn:active { transform: scale(.92); }
 
+  #specialFeed {
+    position: fixed; top: 78px; right: 20px; z-index: 6;
+    width: 218px; display: grid; gap: 8px; pointer-events: none;
+  }
+  .specialCard {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    border: 1px solid var(--skill-color); border-left-width: 4px; border-radius: 14px;
+    background: rgba(17,14,35,.92); box-shadow: 0 6px 24px rgba(0,0,0,.25);
+    animation: skillEntry .28s cubic-bezier(.2,.9,.25,1.2) both;
+  }
+  .specialIcon { font-size: 27px; flex-shrink: 0; }
+  .specialCard > div { min-width: 0; }
+  .specialCard strong { display: block; color: var(--skill-color); font-size: 14px; }
+  .specialPlayer { display: block; color: #c1bfd9; font-size: 12px; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @keyframes skillEntry { from { opacity: 0; transform: translateX(24px) scale(.92); } to { opacity: 1; transform: none; } }
+
   /* ===== Overlays ===== */
   .overlay {
     position: fixed; inset: 0; z-index: 10;
@@ -116,8 +132,31 @@
     background: linear-gradient(135deg,#ffe98a,#ffd23f,#ff9d3d);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
-  .crown { font-size: clamp(50px,14vw,120px); filter: drop-shadow(0 6px 20px rgba(255,210,63,.6)); animation: bob 1.6s ease-in-out infinite; }
-  @keyframes bob { 0%,100%{ transform: translateY(0) rotate(-4deg);} 50%{ transform: translateY(-12px) rotate(4deg);} }
+  .royaleWin {
+    padding: 30px 36px 76px; overflow-y: auto;
+    background: radial-gradient(ellipse at 32% 48%, rgba(49,29,79,.9), rgba(7,7,19,.96) 75%);
+  }
+  .winnerLayout { width: min(960px, 100%); display: grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); align-items: center; gap: 40px; margin: auto; }
+  .winnerHero { min-width: 0; text-align: center; }
+  .winnerEyebrow { font-size: 18px; font-weight: 900; letter-spacing: 5px; color: #ffe19a; }
+  #winnerPortrait { display: block; width: 100%; height: clamp(230px, 45vh, 370px); }
+  .winnerHero #winName { margin: 0; font-size: clamp(30px, 4.8vw, 60px); line-height: 1.15; overflow-wrap: anywhere; }
+  .winnerBoard { padding: 24px; border: 1px solid rgba(255,255,255,.13); border-radius: 24px; background: rgba(20,17,39,.85); min-width: 0; text-align: left; }
+  .winnerBoard h2 { color: #dedbef; font-size: 17px; font-weight: 900; }
+  .winnerBoard .rankList {
+    width: 100%; margin: 18px 0; padding-right: 8px; max-height: min(36vh, 300px);
+    overscroll-behavior: contain; scrollbar-gutter: stable;
+    scrollbar-width: thin; scrollbar-color: #66557f transparent;
+  }
+  .winnerBoard .rankList:hover { scrollbar-color: #9680b5 transparent; }
+  .winnerBoard .rankList::-webkit-scrollbar { width: 6px; }
+  .winnerBoard .rankList::-webkit-scrollbar-track { background: transparent; }
+  .winnerBoard .rankList::-webkit-scrollbar-thumb { background: #66557f; border-radius: 999px; }
+  .winnerBoard .rankList::-webkit-scrollbar-thumb:hover { background: #9680b5; }
+  .winnerBoard .rankName { overflow-wrap: anywhere; min-width: 0; }
+  .winnerBoard .rankNo { flex-shrink: 0; }
+  .winnerActions { display: grid; gap: 10px; }
+  .winnerActions .playBtn, .winnerActions .shareBtn { width: 100%; justify-content: center; padding: 14px 10px; font-size: 17px; border-radius: 14px; margin: 0; }
   .rankList { list-style: none; margin: 22px 0 24px; width: min(380px, 88vw); max-height: 38vh; overflow-y: auto; }
   .rankItem {
     display: flex; align-items: center; gap: 12px;
@@ -179,6 +218,21 @@
   #utilBar a:hover, #utilBar button:hover { background: rgba(44,44,78,.7); }
   #utilBar a:active, #utilBar button:active { transform: scale(.92); }
   #utilBar button[aria-pressed="true"] { opacity: .5; }
+  @media (max-width: 640px) {
+    #specialFeed { top: auto; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: 110px; right: 12px; width: auto; }
+    .specialCard { padding: 8px 10px; gap: 8px; }
+    .specialCard:nth-child(n+3) { display: none; }
+    .specialCard strong { font-size: 13px; }
+    .royaleWin { padding: 24px 18px 76px; }
+    .winnerLayout { grid-template-columns: minmax(0, 1fr); gap: 22px; max-width: 430px; }
+    .winnerEyebrow { font-size: 14px; }
+    #winnerPortrait { height: clamp(180px, 31vh, 270px); }
+    .winnerHero #winName { font-size: clamp(30px, 8vw, 44px); }
+    .winnerBoard { padding: 18px; }
+    .winnerBoard .rankList { max-height: 180px; }
+    .winnerActions { grid-template-columns: 1fr 1fr; }
+    .winnerActions .playBtn, .winnerActions .shareBtn { font-size: 13px; padding: 12px 6px; }
+  }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
   }

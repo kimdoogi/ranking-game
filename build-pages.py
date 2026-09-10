@@ -7,6 +7,8 @@ Game logic and styles live in the shared <slug>.js / <slug>.css and are untouche
     python3 build-pages.py
 """
 from string import Template
+from hashlib import sha256
+from pathlib import Path
 
 BASE = 'https://kimdoogi.github.io/ranking-game/'
 LANGS = ['ko', 'en', 'zh', 'ja']
@@ -15,6 +17,12 @@ OG_LOCALE = {'ko': 'ko_KR', 'en': 'en_US', 'zh': 'zh_CN', 'ja': 'ja_JP'}
 SCHEMA_LANG = {'ko': 'ko-KR', 'en': 'en', 'zh': 'zh-Hans', 'ja': 'ja'}
 GAMES = ['monster-chase', 'obstacle-run', 'push-royale']
 EMOJI = {'': '🎮', 'monster-chase': '👾', 'obstacle-run': '🏁', 'push-royale': '🏆'}
+
+
+def royale_asset(filename):
+    # The result markup and the two canvas scripts must update together, even with cached assets.
+    digest = sha256(Path(__file__).with_name(filename).read_bytes()).hexdigest()[:10]
+    return f'{filename}?v={digest}'
 
 
 def page_file(slug, lang):
@@ -326,6 +334,11 @@ T_PUSH = {
   finalRound: '결승!',
   save: '세이브!',
   special: '필살기!',
+  spSpin: '회오리 홈런',
+  spDash: '로켓 돌진',
+  spBolt: '번개 연쇄',
+  spQuake: '지진 강타',
+  winnerRoar: name => `${name}의 우승 포효`,
   cardTitle: '🏆 밀어내기 배틀 로얄',
   cardPlayers: n => `${n}명 참가`,
   cardLast: '💀 꼴 찌',
@@ -353,6 +366,11 @@ T_PUSH = {
   finalRound: 'FINAL!',
   save: 'SAVE!',
   special: 'SPECIAL!',
+  spSpin: 'Homerun Cyclone',
+  spDash: 'Rocket Rush',
+  spBolt: 'Chain Lightning',
+  spQuake: 'Quake Slam',
+  winnerRoar: name => `${name} roars in victory`,
   cardTitle: '🏆 Push Royale',
   cardPlayers: n => `${n} players`,
   cardLast: '💀 LAST',
@@ -380,6 +398,11 @@ T_PUSH = {
   finalRound: '决赛！',
   save: '救回来了！',
   special: '必杀技！',
+  spSpin: '旋风全垒打',
+  spDash: '火箭冲刺',
+  spBolt: '连锁闪电',
+  spQuake: '地震重击',
+  winnerRoar: name => `${name}的胜利咆哮`,
   cardTitle: '🏆 推挤大逃杀',
   cardPlayers: n => `${n} 人参加`,
   cardLast: '💀 倒数第一',
@@ -407,6 +430,11 @@ T_PUSH = {
   finalRound: '決勝！',
   save: 'セーフ！',
   special: '必殺技！',
+  spSpin: '竜巻ホームラン',
+  spDash: 'ロケット突進',
+  spBolt: '連鎖ライトニング',
+  spQuake: '大地クラッシュ',
+  winnerRoar: name => `${name}の勝利の雄叫び`,
   cardTitle: '🏆 プッシュバトルロイヤル',
   cardPlayers: n => `${n}人参加`,
   cardLast: '💀 ビリ',
@@ -718,7 +746,7 @@ $altLocales
 }
 </script>
 
-<link rel="stylesheet" href="$slug.css" />
+<link rel="stylesheet" href="$stylesheet" />
 </head>
 """)
 
@@ -762,6 +790,7 @@ def game_page(slug, lang):
     head = GAME_HEAD.substitute(
         gaTag=ga_tag(), htmlLang=HTML_LANG[lang], ogLocale=OG_LOCALE[lang], schemaLang=SCHEMA_LANG[lang],
         base=BASE, url=page_url(slug, lang), slug=slug, emoji=EMOJI[slug],
+        stylesheet=royale_asset('push-royale.css') if slug == 'push-royale' else f'{slug}.css',
         siteName=SITE_NAME[lang], hreflang=hreflang_block(slug), altLocales=alt_locales(lang),
         title=m['title'], desc=m['desc'], keywords=m['keywords'],
         ogTitle=m['ogTitle'], ogDesc=m['ogDesc'], name=m['name'],
@@ -787,12 +816,37 @@ def game_page(slug, lang):
         crown, extra = '🏆', ''
     else:
         hud = (f'<div id="hud">\n  <div class="pill">{m["hud"]} <span class="big" id="aliveCount">0</span></div>\n'
-               f'  <button id="shakeBtn">{m["shake"]}</button>\n</div>\n')
+               f'  <button id="shakeBtn">{m["shake"]}</button>\n</div>\n'
+               '<div id="specialFeed" role="status" aria-live="polite" aria-relevant="additions"></div>\n')
         crown = '👑'
         extra = f'  <button class="shareBtn" id="shareBtn" type="button">{m["share"]}</button>\n'
 
     toast = '<div id="toast" role="status" aria-live="polite"></div>\n' if slug == 'push-royale' else ''
     share_url = f"  shareUrl: '{page_url(slug, lang)}',\n" if slug == 'push-royale' else ''
+    win_screen = WIN_SCREEN.substitute(crown=crown, again=r['again'], extra=extra)
+    effects_script = ''
+    game_script = f'{slug}.js'
+    if slug == 'push-royale':
+        rank_title = {'ko': '최종 순위', 'en': 'Final standings', 'zh': '最终排名', 'ja': '最終ランキング'}[lang]
+        win_screen = f'''<div class="overlay hidden royaleWin" id="winScreen">
+  <div class="winnerLayout">
+    <div class="winnerHero">
+      <div class="winnerEyebrow">👑 WINNER</div>
+      <canvas id="winnerPortrait" role="img"></canvas>
+      <div id="winName">-</div>
+    </div>
+    <section class="winnerBoard" aria-labelledby="rankTitle">
+      <h2 id="rankTitle">{rank_title}</h2>
+      <ol class="rankList" id="rankList"></ol>
+      <div class="winnerActions">
+        <button class="playBtn win" id="againBtn">{r['again']}</button>
+{extra}      </div>
+    </section>
+  </div>
+</div>
+'''
+        effects_script = f'<script src="{royale_asset("push-royale-fx.js")}"></script>\n'
+        game_script = royale_asset('push-royale.js')
 
     return head + f"""<body>
 <canvas id="game"></canvas>
@@ -809,13 +863,13 @@ def game_page(slug, lang):
 """ + ROSTER_BLOCK.substitute(presets=presets, **r) + f"""  <button class="playBtn" id="startBtn">{m.get('start', r['start'])}</button>
 </div>
 
-""" + WIN_SCREEN.substitute(crown=crown, again=r['again'], extra=extra) + f"""
+""" + win_screen + f"""
 {toast}<script>
 window.T = {{
 {share_url}{T[slug][lang]}
 }};
 </script>
-<script src="{slug}.js"></script>
+{effects_script}<script src="{game_script}"></script>
 </body>
 </html>
 """

@@ -3,6 +3,7 @@
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fx = new window.PushRoyaleFX(ctx, reduceMotion);
   let muted = false;
   try { muted = localStorage.getItem('minigame_muted') === '1'; } catch (e) {}
   let W = 0, H = 0, DPR = 1;
@@ -23,15 +24,18 @@
 
   // ---------- Special (필살기) ----------
   // Gauge fills only from bat contact — swinging at air earns nothing.
-  const SP_DEAL = 0.13;              // gauge gained for landing a hit
-  const SP_TAKE = 0.06;              // gauge gained for taking one
-  const SP_HIT  = 0.30;              // active window of a special (long: it's a full 360 spin)
-  // A spin sends several people to the rim at once, and only 2 can teeter there —
-  // the overflow falls straight out. Kept modest so the match still reaches sudden death.
-  const SP_REACH = 1.45;             // reach multiplier while spinning
-  const SP_POWER = 1.45;             // launch multiplier
-  const swHit = p => (p.special ? SP_HIT : SW_HIT);
-  const swDur = p => SW_WIND + swHit(p) + SW_REC;
+  const SP_DEAL = 0.14;              // about 8% more charge from contact; no passive charging
+  const SP_TAKE = 0.065;
+  const SP_WIND = 0.28;              // give the selected technique a readable anticipation beat
+  const SPECIALS = [
+    { id: 'spin', icon: '🌪️', name: T.spSpin, color: '#ffd23f', hit: 0.30, reach: 1.45, power: 1.45 },
+    { id: 'dash', icon: '🚀', name: T.spDash, color: '#ff795c', hit: 0.24, reach: 1.20, power: 1.55 },
+    { id: 'bolt', icon: '⚡', name: T.spBolt, color: '#66edff', hit: 0.24, reach: 1.35, power: 1.18 },
+    { id: 'quake', icon: '💥', name: T.spQuake, color: '#c597ff', hit: 0.32, reach: 1.55, power: 1.40 },
+  ];
+  const swWind = p => p.special ? SP_WIND : SW_WIND;
+  const swHit = p => p.special ? p.special.hit : SW_HIT;
+  const swDur = p => swWind(p) + swHit(p) + SW_REC;
 
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -140,7 +144,6 @@
   // juice state
   let trauma = 0;                // screen shake: displacement = trauma² · max
   let freezeT = 0, lastFreeze = 0;         // hit-stop
-  let impactFX = null;           // {x,y,nx,ny,t}
   let slowmo = { ts: 1, t: 0 };  // timeScale hold
   let timeScale = 1;
   let flashT = 0, lastFlash = 0; // gold radial vignette
@@ -148,11 +151,36 @@
   let koChainIdx = 0, koChainT = -9;
   let fallTimes = [];            // for DOUBLE/MONSTER KO
   let spUses = 0;                // specials fired this match (tuning readout)
+  let spCounts = {};
+  let victoryT = 0;
   let hbT = 0;                   // heartbeat timer
   let cam = { x: 0, y: 0, zoom: 1, tx: 0, ty: 0, tz: 1 };
 
   function groundY(y) { return arena.cy + (y - arena.cy) * TILT; }
   const aliveEl = document.getElementById('aliveCount');
+  const specialFeed = document.getElementById('specialFeed');
+  specialFeed.setAttribute('aria-label', T.special);
+  const winnerPortrait = document.getElementById('winnerPortrait');
+  const winnerCtx = winnerPortrait.getContext('2d');
+
+  function announceSpecial(p) {
+    const skill = p.special;
+    const card = document.createElement('div');
+    card.className = 'specialCard';
+    card.style.setProperty('--skill-color', skill.color);
+    const icon = document.createElement('span');
+    icon.className = 'specialIcon'; icon.textContent = skill.icon;
+    icon.setAttribute('aria-hidden', 'true');
+    const copy = document.createElement('div');
+    const name = document.createElement('span');
+    name.className = 'specialPlayer'; name.textContent = dispName(p);
+    const label = document.createElement('strong');
+    label.textContent = skill.name;
+    copy.append(name, label); card.append(icon, copy);
+    specialFeed.prepend(card);
+    while (specialFeed.children.length > 3) specialFeed.lastElementChild.remove();
+    setTimeout(() => card.remove(), 2800);
+  }
 
   function addTrauma(a) {
     if (reduceMotion) return;
@@ -177,13 +205,14 @@
   // ---------- Setup match ----------
   function setupGame(n) {
     players = []; particles = []; confetti = []; floaters = [];
+    fx.clear(); specialFeed.replaceChildren();
     eliminationOrder = []; winner = null; trauma = 0; spin = 0;
     gameT = 0; elimCount = 0; suddenDeath = false;
     lastElimT = 0; lastCollT = 0; aggrPulseT = 0; directorOn = false;
     final2T = -1; faceOffDone = false; finalSlowmoDone = false; prevAliveNF = 99;
-    freezeT = 0; impactFX = null; slowmo = { ts: 1, t: 0 }; timeScale = 1;
+    freezeT = 0; slowmo = { ts: 1, t: 0 }; timeScale = 1;
     flashT = 0; banner = null; koChainIdx = 0; koChainT = -9; fallTimes = []; hbT = 0;
-    spUses = 0;
+    spUses = 0; spCounts = {}; victoryT = 0;
 
     const cx = W / 2, cy = H * 0.54;
     const R = Math.min(W * 0.42, H * 0.55);
@@ -211,7 +240,7 @@
         phase: rand(0, 6.28), squash: 0, lookX: 0, lookY: 1,
         // bat
         swingT: -1, swingCd: rand(0.6, 1.7), aim: ang + Math.PI, batSide: 1, hitIds: [],
-        sp: 0, special: false,
+        sp: 0, special: null,
         knockT: 0, batHitT: -9, rimGrab: true,
         // drama
         grudge: -1, grudgeT: 0,
@@ -258,7 +287,7 @@
   // A special sweeps wider, but the arena cap still binds — applying the multiplier
   // on top of the cap let a phone-sized spin cover 44% of the ring.
   function batReach(p, special) {
-    return special ? Math.min(p.r * (1 + BAT_LEN) * SP_REACH, arena.R * 0.36)
+    return special ? Math.min(p.r * (1 + BAT_LEN) * special.reach, arena.R * 0.36)
                    : Math.min(p.r * (1 + BAT_LEN), arena.R * 0.30);
   }
 
@@ -267,7 +296,7 @@
     p.swingT = 0;
     // p.special is only ever read during an active swing, so setting it here is the
     // only reset needed — every other swingT = -1 path can leave the stale value.
-    p.special = !!special;
+    p.special = special ? SPECIALS[Math.floor(Math.random() * SPECIALS.length)] : null;
     p.hitIds.length = 0;
     p.batSide = Math.cos(p.aim) >= 0 ? 1 : -1;      // arc reads as travelling toward the target
     p.vx += Math.cos(p.aim) * 0.5 * arena.scale;    // step into the pitch
@@ -275,30 +304,55 @@
     const now = performance.now();
     if (special) {
       p.sp = 0; spUses++;
-      addFloater(p.x, groundY(p.y) - 52, T.special, '#ffd23f', true);
-      beep(220, 0.16, 'sawtooth', 0.16, 900);
-      beep(1200, 0.10, 'square', 0.08);
-      addTrauma(0.25);
+      spCounts[p.special.id] = (spCounts[p.special.id] || 0) + 1;
+      announceSpecial(p);
+      const pitch = { spin: 620, dash: 420, bolt: 1300, quake: 180 }[p.special.id];
+      beep(180, SP_WIND, 'triangle', 0.12, pitch);
     } else if (now - lastSwoosh > 70) { lastSwoosh = now; beep(880, 0.05, 'sine', 0.035, 300); }
   }
 
   // Only the active middle window of a swing can connect; each swing hits a target once.
   function resolveSwings() {
     for (const a of players) {
-      if (!a.alive || a.falling || a.swingT < SW_WIND) continue;
-      const prog = (a.swingT - SW_WIND) / swHit(a);
+      if (!a.alive || a.falling || a.knockT > 0 || a.swingT < swWind(a)) continue;
+      const prog = (a.swingT - swWind(a)) / swHit(a);
       if (prog > 1) continue;
-      const batAng = a.aim + (prog - 0.5) * (a.special ? Math.PI * 2 : BAT_ARC) * a.batSide;
-      const reach = batReach(a, a.special);
+      const kind = a.special && a.special.id;
+      const batAng = kind && kind !== 'spin' ? a.aim
+        : a.aim + (prog - 0.5) * (kind ? Math.PI * 2 : BAT_ARC) * a.batSide;
+      let reach = batReach(a, a.special);
+      if (kind === 'quake') reach *= Math.max(0.12, prog);
+      if (kind === 'bolt') {
+        if (a.hitIds.length) continue;
+        // Up to three nearby rivals; the chain cannot reach across the whole arena.
+        let origin = a;
+        for (let hop = 0; hop < 3; hop++) {
+          let target = null, distance = reach * (hop ? 0.78 : 1);
+          for (const b of players) {
+            if (b === a || !b.alive || b.falling || a.hitIds.includes(b.id)) continue;
+            if (Math.hypot(b.x - a.x, b.y - a.y) > reach * 1.55) continue;
+            const d = Math.hypot(b.x - origin.x, b.y - origin.y);
+            if (d <= distance) { target = b; distance = d; }
+          }
+          if (!target) break;
+          const dx = target.x - a.x, dy = target.y - a.y, d = Math.hypot(dx, dy) || 1;
+          a.hitIds.push(target.id);
+          fx.bolt(origin.x, groundY(origin.y) - origin.z - origin.r,
+            target.x, groundY(target.y) - target.z - target.r, a.special.color);
+          batHit(a, target, dx / d, dy / d, batAng);
+          origin = target;
+        }
+        continue;
+      }
       for (const b of players) {
         if (b === a || !b.alive || b.falling) continue;
         if (a.hitIds.includes(b.id)) continue;
         const dx = b.x - a.x, dy = b.y - a.y;
         const d = Math.hypot(dx, dy) || 1;
         if (d > reach + b.r) continue;
-        if (!a.special) {   // a spin sweeps the whole circle — no cone test
+        if (!kind || kind === 'dash') {
           const rel = Math.atan2(dy, dx) - batAng;
-          if (Math.abs(Math.atan2(Math.sin(rel), Math.cos(rel))) > BAT_CONE) continue;
+          if (Math.abs(Math.atan2(Math.sin(rel), Math.cos(rel))) > (kind === 'dash' ? 0.72 : BAT_CONE)) continue;
         }
         a.hitIds.push(b.id);
         batHit(a, b, dx / d, dy / d, batAng);
@@ -309,12 +363,13 @@
   function batHit(a, b, nx, ny, batAng) {
     // power ramps with the match so the opening isn't a bloodbath
     const pw = suddenDeath ? 1.2 : lerp(0.40, 0.95, gameT / 65);
-    const sw = a.special ? SP_POWER : 1;
+    const sw = a.special ? a.special.power : 1;
     // gauge: swinging earns nothing, contact does. A special can't refill itself.
     if (!a.special) a.sp = Math.min(1, a.sp + SP_DEAL);
     b.sp = Math.min(1, b.sp + SP_TAKE);
     // launch away from the batter, biased along the bat tip's travel
-    const tx = -Math.sin(batAng) * a.batSide, ty = Math.cos(batAng) * a.batSide;
+    const tangent = !a.special || a.special.id === 'spin' ? 1 : 0;
+    const tx = -Math.sin(batAng) * a.batSide * tangent, ty = Math.cos(batAng) * a.batSide * tangent;
     let lx = nx + tx * 0.45, ly = ny + ty * 0.45;
     const ll = Math.hypot(lx, ly) || 1; lx /= ll; ly /= ll;
 
@@ -331,8 +386,9 @@
     a.squash = Math.max(a.squash, 0.18);
 
     const hx = b.x - nx * b.r * 0.6, hy = groundY(b.y - ny * b.r * 0.6) - b.z - b.r * 0.9;
-    spawnHitParticles(hx, hy, '#ffd23f', 6 + pw * 4 * sw);
-    spawnHitParticles(hx, hy, '#fff', 4);
+    const hitColor = a.special ? a.special.color : '#ffd23f';
+    spawnHitParticles(hx, hy, hitColor, 5 + pw * 3 * sw);
+    fx.impact(hx, hy, Math.atan2(ly * TILT, lx), hitColor, b.r * (a.special ? 1.7 : 1.1));
     lastCollT = gameT;
     addTrauma((0.18 + 0.22 * pw) * sw);
     beep(150, 0.09, 'square', 0.16 * pw, 55);       // crack
@@ -342,8 +398,7 @@
     if ((pw > 0.9 || a.special) && now - lastFreeze > 380 && timeScale > 0.999) {
       lastFreeze = now;
       freezeT = 0.05;
-      impactFX = { x: hx, y: hy, nx: lx, ny: ly, t: 0.09 };
-      addFloater(hx, hy - 20, T.clang, '#ffd23f', true);
+      addFloater(hx, hy - 20, T.clang, hitColor, true);
     }
     // no balancing on the rim once a bat lands
     if (b.teeter > 0) startFall(b);
@@ -522,7 +577,16 @@
       // --- bat timers ---
       if (p.knockT > 0) p.knockT -= dt;
       if (p.swingT >= 0) {
+        const previousT = p.swingT;
         p.swingT += dt;
+        if (p.special && previousT < swWind(p) && p.swingT >= swWind(p) && p.knockT <= 0) {
+          if (p.special.id === 'dash') {
+            const speed = Math.min(5 * arena.scale, arena.R * 0.018);
+            p.vx = Math.cos(p.aim) * speed; p.vy = Math.sin(p.aim) * speed;
+          }
+          addTrauma(0.18);
+          beep(p.special.id === 'bolt' ? 1100 : 130, 0.12, 'sawtooth', 0.12, 65);
+        }
         if (p.swingT >= swDur(p)) { p.swingT = -1; p.swingCd = rand(1.2, 2.4) / cdRate; }
       } else if (p.swingCd > 0) p.swingCd -= dt;
       // a hit interrupts the swing — you can't bat while flying
@@ -552,14 +616,14 @@
         p.vy += (dy / d) * aggr * boost * ctl * fm;
 
         // aim keeps tracking until the bat commits (start of the active arc)
-        if (p.swingT < 0 || p.swingT < SW_WIND) {
-          const lead = (p.swingT < 0 ? SW_WIND : SW_WIND - p.swingT) * 60;
+        if (p.swingT < 0 || p.swingT < swWind(p)) {
+          const lead = (p.swingT < 0 ? SW_WIND : swWind(p) - p.swingT) * 60;
           p.aim = Math.atan2(dy + near.vy * lead, dx + near.vx * lead);
         }
         // swing when the target is inside reach and the bat is ready
         if (p.swingT < 0 && p.swingCd <= 0) {
           const ready = p.sp >= 1;
-          if (d < batReach(p, ready) * 0.95 + near.r * 0.7) startSwing(p, ready);
+          if (d < batReach(p, ready ? SPECIALS[0] : null) * 0.95 + near.r * 0.7) startSwing(p, ready);
         }
       }
       if (p.knockT <= 0) {
@@ -702,7 +766,7 @@
 
     trauma *= Math.pow(0.9, fm);
     if (aliveEl._v !== aliveNF) { aliveEl._v = aliveNF; aliveEl.textContent = aliveNF; }
-    window.__st = { t: Math.round(gameT * 10) / 10, aliveNF, state, sd: suddenDeath, spUses,
+    window.__st = { t: Math.round(gameT * 10) / 10, aliveNF, state, sd: suddenDeath, spUses, spCounts,
       W, H, cx: Math.round(arena.cx), R0: Math.round(arena.R0), iw: window.innerWidth };
   }
 
@@ -712,6 +776,9 @@
       state = 'over';
       winner = alive[0] || eliminationOrder[eliminationOrder.length - 1];
       if (winner && !eliminationOrder.includes(winner)) eliminationOrder.push(winner);
+      if (winner) winner.swingT = -1;
+      specialFeed.replaceChildren();
+      victoryT = 0;
       cam.tx = W / 2; cam.ty = H * 0.5; cam.tz = 1;
       setTimeout(showWinner, 1100);
       burstConfetti(); fanfare(); addTrauma(0.8);
@@ -719,12 +786,17 @@
   }
 
   // ---------- Stickman ----------
-  function drawStickman(p, dangerAlphaDiv) {
+  function drawStickman(p, dangerAlphaDiv, c = ctx, cheerT = -1) {
+    const cheering = cheerT >= 0;
+    const roar = cheering ? (reduceMotion ? 0.65 : Math.pow((1 + Math.sin(cheerT * 5)) / 2, 3)) : 0;
+    const casting = !cheering && !p.falling && p.teeter <= 0 && p.special && p.swingT >= 0;
     const s = p.r / 12;
     const gy = groundY(p.y);
     const sp = Math.hypot(p.vx, p.vy);
     const runAmt = Math.min(1, sp * 0.30 + 0.15);
-    const bob = (p.falling || p.teeter > 0) ? 0 : Math.abs(Math.sin(p.phase)) * 2.2 * s * runAmt;
+    const hop = casting && p.special.id === 'quake' && p.swingT < swWind(p) && !reduceMotion
+      ? Math.sin(p.swingT / swWind(p) * Math.PI) * p.r * 0.8 : 0;
+    const bob = cheering ? 0 : (p.falling || p.teeter > 0) ? 0 : Math.abs(Math.sin(p.phase)) * 2.2 * s * runAmt + hop;
     const sx = p.x, sy = gy - p.z - bob;
 
     // danger glow (orange pre-cue, under the shadow)
@@ -732,64 +804,74 @@
       const dc = Math.hypot(p.x - arena.cx, p.y - arena.cy);
       const depth = (dc - 0.78 * arena.R) / (0.22 * arena.R);
       if (depth > 0) {
-        ctx.globalAlpha = clamp((0.2 + 0.2 * Math.sin(gameT * 8)) * clamp(depth, 0, 1) / dangerAlphaDiv, 0, 0.45);
-        ctx.beginPath();
-        ctx.ellipse(sx, gy, p.r * 1.6, p.r * 0.55, 0, 0, 7);
-        ctx.fillStyle = 'rgb(255,120,40)'; ctx.fill();
-        ctx.globalAlpha = 1;
+        c.globalAlpha = clamp((0.2 + 0.2 * Math.sin(gameT * 8)) * clamp(depth, 0, 1) / dangerAlphaDiv, 0, 0.45);
+        c.beginPath();
+        c.ellipse(sx, gy, p.r * 1.6, p.r * 0.55, 0, 0, 7);
+        c.fillStyle = 'rgb(255,120,40)'; c.fill();
+        c.globalAlpha = 1;
       }
     }
 
     // floor shadow
     if (!p.falling) {
       const shrink = 1 / (1 + Math.max(0, p.z) * 0.012);
-      ctx.globalAlpha = 0.30 * shrink;
-      ctx.beginPath();
-      ctx.ellipse(sx, gy, p.r * 0.95 * shrink, p.r * 0.32 * shrink, 0, 0, 7);
-      ctx.fillStyle = '#000'; ctx.fill();
-      ctx.globalAlpha = 1;
+      c.globalAlpha = 0.30 * shrink;
+      c.beginPath();
+      c.ellipse(sx, gy, p.r * 0.95 * shrink, p.r * 0.32 * shrink, 0, 0, 7);
+      c.fillStyle = '#000'; c.fill();
+      c.globalAlpha = 1;
     }
 
     const fade = p.falling ? Math.max(0, 1 - Math.max(0, -p.z - 40) / 220) : 1;
     if (fade <= 0) return;
 
-    ctx.save();
-    ctx.globalAlpha = fade;
-    ctx.translate(sx, sy);
-    ctx.rotate(p.falling ? p.rot : (p.teeter > 0 ? p.teeterLean : clamp(p.vx * 0.035, -0.3, 0.3)));
-    ctx.scale(1 + p.squash * 0.5, 1 - p.squash * 0.5);
+    if (!cheering) {
+      if (p.knockT > 0 || (p.falling && gameT - p.batHitT < 1)) fx.trail(p, gy);
+      if (casting) fx.special(p, gy, batReach(p, p.special), swWind(p), swHit(p));
+    }
+
+    c.save();
+    c.globalAlpha = fade;
+    c.translate(sx, sy);
+    const pose = casting && !reduceMotion ? (p.special.id === 'dash' ? Math.cos(p.aim) * 0.35
+      : p.special.id === 'spin' ? Math.sin(p.swingT * 32) * 0.15 : 0) : 0;
+    c.rotate(cheering ? (reduceMotion ? 0 : Math.sin(cheerT * 12) * roar * 0.025)
+      : p.falling ? p.rot : (p.teeter > 0 ? p.teeterLean : clamp(p.vx * 0.035, -0.3, 0.3)) + pose);
+    c.scale(1 + p.squash * 0.5 + roar * 0.10, 1 - p.squash * 0.5 + roar * 0.07);
 
     // chunky/cute proportions: short body, stubby limbs, big head
     const hipY = -8.5 * s, neckY = -16 * s, headR = 7.6 * s;
     const headY = neckY - headR * 0.75;
     const flail = (p.falling || p.teeter > 0) ? (p.falling ? p.fallT * 26 : p.phase) : p.phase;
-    const swing = Math.sin(flail) * ((p.falling || p.teeter > 0) ? 1.1 : 0.95 * runAmt);
+    const swing = cheering ? 0.6 : Math.sin(flail) * ((p.falling || p.teeter > 0) ? 1.1 : 0.95 * runAmt);
 
-    ctx.strokeStyle = p.color;
-    ctx.lineWidth = Math.max(3, 4.2 * s);
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.shadowColor = p.color; ctx.shadowBlur = 12;
+    c.strokeStyle = p.color;
+    c.lineWidth = Math.max(3, 4.2 * s);
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    c.shadowColor = p.color; c.shadowBlur = 12;
 
     const legL = 8.5 * s, armL = 7.5 * s, shY = neckY + 1.5 * s;
 
     // ----- bat pose (angles use the arm convention: 0 = straight down) -----
     const BAT_REST = -2.55, BAT_WIND = -2.05, BAT_END = 1.6;
-    const bs = p.batSide || 1;
+    const bs = cheering ? 1 : p.batSide || 1;
     let bth, arcA = null, arcB = null;
-    if (p.falling || p.teeter > 0) {
+    if (cheering) {
+      bth = -Math.PI + 0.32 + roar * 0.12;
+    } else if (p.falling || p.teeter > 0) {
       bth = BAT_REST + Math.sin(flail) * 0.5;
     } else if (p.swingT >= 0) {
       const t = p.swingT;
-      if (t < SW_WIND) {
-        bth = lerp(BAT_REST, BAT_WIND, Math.pow(t / SW_WIND, 0.6));
-      } else if (t < SW_WIND + swHit(p)) {
-        const k = (t - SW_WIND) / swHit(p);
+      if (t < swWind(p)) {
+        bth = lerp(BAT_REST, BAT_WIND, Math.pow(t / swWind(p), 0.6));
+      } else if (t < swWind(p) + swHit(p)) {
+        const k = (t - swWind(p)) / swHit(p);
         // a special adds a whole extra turn; landing on BAT_END + 2π keeps the
         // follow-through continuous (angles are only ever used through sin/cos)
-        bth = lerp(BAT_WIND, p.special ? BAT_END + Math.PI * 2 : BAT_END, k);
-        arcA = BAT_WIND; arcB = bth;
+        bth = lerp(BAT_WIND, p.special && p.special.id === 'spin' ? BAT_END + Math.PI * 2 : BAT_END, k);
+        arcA = Math.max(BAT_WIND, bth - 1.8); arcB = bth;
       } else {
-        const k = (t - SW_WIND - swHit(p)) / SW_REC;
+        const k = (t - swWind(p) - swHit(p)) / SW_REC;
         bth = lerp(BAT_END, BAT_REST, k * k);
         if (k < 0.4) { arcA = lerp(BAT_WIND, BAT_END, 0.5); arcB = bth; }
       }
@@ -799,99 +881,134 @@
     bth *= bs;
     const bux = Math.sin(bth), buy = Math.cos(bth);
     const gripD = armL * 0.62;
-    const batL = 25 * s * (batReach(p, p.special && p.swingT >= 0) / (p.r * (1 + BAT_LEN)));   // drawn length matches real reach
+    const batL = 25 * s * (cheering ? 1 : batReach(p, casting ? p.special : null) / (p.r * (1 + BAT_LEN)));
     // hands sit out to the cocked side, so the resting bat runs past the head instead of across the face
     const anchorX = -bs * 4.6 * s;
-    const hx = anchorX + bux * gripD, hy = shY + buy * gripD;
+    const hx = cheering ? 12 * s : anchorX + bux * gripD;
+    const hy = cheering ? shY - (12 + roar * 1.5) * s : shY + buy * gripD;
 
     // swing swoosh (under the body)
-    if (arcA !== null) {
+    if (arcA !== null && !reduceMotion) {
       const a0 = Math.PI / 2 - arcA * bs, a1 = Math.PI / 2 - arcB * bs;
-      ctx.save();
-      ctx.globalAlpha = fade * 0.4;
-      ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(2, 3.4 * s);
-      ctx.shadowColor = '#fff'; ctx.shadowBlur = 10;
-      ctx.beginPath();
-      ctx.arc(anchorX, shY, gripD + batL * 0.92, Math.min(a0, a1), Math.max(a0, a1));
-      ctx.stroke();
-      ctx.restore();
+      const radius = gripD + batL * 0.92;
+      c.save();
+      c.globalAlpha = fade * 0.55;
+      c.fillStyle = casting ? p.special.color : '#fff3cf';
+      c.strokeStyle = '#fff'; c.lineWidth = Math.max(1, 1.6 * s);
+      c.shadowColor = c.fillStyle; c.shadowBlur = 12;
+      c.beginPath();
+      c.arc(anchorX, shY, radius, Math.min(a0, a1), Math.max(a0, a1));
+      c.arc(anchorX, shY, radius * 0.68, Math.max(a0, a1), Math.min(a0, a1), true);
+      c.closePath(); c.fill();
+      c.beginPath(); c.arc(anchorX, shY, radius, Math.min(a0, a1), Math.max(a0, a1)); c.stroke();
+      c.restore();
     }
 
-    ctx.beginPath();
-    ctx.moveTo(0, hipY); ctx.lineTo(Math.sin(swing) * legL, hipY + Math.cos(swing * 0.8) * legL);
-    ctx.moveTo(0, hipY); ctx.lineTo(-Math.sin(swing) * legL, hipY + Math.cos(swing * 0.8) * legL);
-    ctx.moveTo(0, hipY); ctx.lineTo(0, neckY);
-    // both arms reach the grip — everyone is holding a bat two-handed
-    ctx.moveTo(-1.7 * s, shY); ctx.lineTo(hx, hy);
-    ctx.moveTo(1.7 * s, shY); ctx.lineTo(hx + bux * 2.4 * s, hy + buy * 2.4 * s);
-    ctx.stroke();
+    c.beginPath();
+    c.moveTo(0, hipY); c.lineTo(Math.sin(swing) * legL, hipY + Math.cos(swing * 0.8) * legL);
+    c.moveTo(0, hipY); c.lineTo(-Math.sin(swing) * legL, hipY + Math.cos(swing * 0.8) * legL);
+    c.moveTo(0, hipY); c.lineTo(0, neckY);
+    if (cheering) {
+      c.moveTo(-1.7 * s, shY); c.lineTo(-10 * s, shY - 3 * s); c.lineTo(-13 * s, hy);
+      c.moveTo(1.7 * s, shY); c.lineTo(10 * s, shY - 3 * s); c.lineTo(hx, hy);
+    } else {
+      c.moveTo(-1.7 * s, shY); c.lineTo(hx, hy);
+      c.moveTo(1.7 * s, shY); c.lineTo(hx + bux * 2.4 * s, hy + buy * 2.4 * s);
+    }
+    c.stroke();
 
     // head
-    ctx.beginPath(); ctx.arc(0, headY, headR, 0, 7);
-    ctx.fillStyle = p.color; ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.beginPath(); ctx.arc(-headR * 0.3, headY - headR * 0.3, headR * 0.32, 0, 7);
-    ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fill();
+    c.beginPath(); c.arc(0, headY, headR, 0, 7);
+    c.fillStyle = p.color; c.fill();
+    c.shadowBlur = 0;
+    c.beginPath(); c.arc(-headR * 0.3, headY - headR * 0.3, headR * 0.32, 0, 7);
+    c.fillStyle = 'rgba(255,255,255,.35)'; c.fill();
 
     // eyes
     const ex = p.lookX * headR * 0.3, ey = p.lookY * headR * 0.22;
     for (const m of [-1, 1]) {
-      ctx.beginPath(); ctx.arc(m * headR * 0.42, headY - headR * 0.05, headR * 0.30, 0, 7);
-      ctx.fillStyle = '#fff'; ctx.fill();
-      ctx.beginPath(); ctx.arc(m * headR * 0.42 + ex, headY - headR * 0.05 + ey, headR * 0.15, 0, 7);
-      ctx.fillStyle = '#222'; ctx.fill();
+      c.beginPath(); c.arc(m * headR * 0.42, headY - headR * 0.05, headR * 0.30, 0, 7);
+      c.fillStyle = '#fff'; c.fill();
+      c.beginPath(); c.arc(m * headR * 0.42 + ex, headY - headR * 0.05 + ey, headR * 0.15, 0, 7);
+      c.fillStyle = '#222'; c.fill();
     }
     // angry eyebrows while hunting a grudge
-    if (p.grudge >= 0 && !p.falling) {
-      ctx.strokeStyle = '#ff5050'; ctx.lineWidth = Math.max(1.5, 1.6 * s);
-      ctx.beginPath();
-      ctx.moveTo(-headR * 0.65, headY - headR * 0.55); ctx.lineTo(-headR * 0.15, headY - headR * 0.32);
-      ctx.moveTo(headR * 0.65, headY - headR * 0.55); ctx.lineTo(headR * 0.15, headY - headR * 0.32);
-      ctx.stroke();
+    if ((p.grudge >= 0 || cheering) && !p.falling) {
+      c.strokeStyle = '#ff5050'; c.lineWidth = Math.max(1.5, 1.6 * s);
+      c.beginPath();
+      c.moveTo(-headR * 0.65, headY - headR * 0.55); c.lineTo(-headR * 0.15, headY - headR * 0.32);
+      c.moveTo(headR * 0.65, headY - headR * 0.55); c.lineTo(headR * 0.15, headY - headR * 0.32);
+      c.stroke();
+    }
+    if (cheering) {
+      const mouthY = headY + headR * 0.44, mouthH = headR * (0.30 + roar * 0.21);
+      c.beginPath(); c.ellipse(0, mouthY, headR * 0.47, mouthH, 0, 0, Math.PI * 2);
+      c.fillStyle = '#30152f'; c.fill();
+      c.fillStyle = '#fff'; c.fillRect(-headR * 0.27, mouthY - mouthH * 0.8, headR * 0.54, headR * 0.10);
+      c.beginPath(); c.ellipse(0, mouthY + mouthH * 0.45, headR * 0.24, mouthH * 0.3, 0, 0, Math.PI * 2);
+      c.fillStyle = '#ff7892'; c.fill();
+      if (!reduceMotion) {
+        c.save(); c.globalAlpha = 0.3 + roar * 0.6;
+        c.strokeStyle = '#fff3b0'; c.lineWidth = Math.max(2, s * 0.55);
+        for (const side of [-1, 1]) for (let i = -1; i <= 1; i++) {
+          c.beginPath();
+          c.moveTo(side * headR * 1.5, mouthY + i * headR * 0.5);
+          c.lineTo(side * headR * (1.9 + roar * 0.55), mouthY + i * headR * 0.8); c.stroke();
+        }
+        c.restore();
+      }
     }
 
     // ----- the bat itself (drawn last so a swing reads over the body) -----
-    ctx.shadowBlur = 0; ctx.lineCap = 'round';
-    ctx.strokeStyle = '#7a4a22'; ctx.lineWidth = Math.max(2, 2.8 * s);
-    ctx.beginPath();
-    ctx.moveTo(hx - bux * 3 * s, hy - buy * 3 * s);
-    ctx.lineTo(hx + bux * batL * 0.5, hy + buy * batL * 0.5);
-    ctx.stroke();
-    ctx.strokeStyle = '#d7a267'; ctx.lineWidth = Math.max(3, 5 * s);
-    ctx.beginPath();
-    ctx.moveTo(hx + bux * batL * 0.42, hy + buy * batL * 0.42);
-    ctx.lineTo(hx + bux * batL, hy + buy * batL);
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = Math.max(1, 1.4 * s);
-    ctx.beginPath();
-    ctx.moveTo(hx + bux * batL * 0.55, hy + buy * batL * 0.55);
-    ctx.lineTo(hx + bux * batL * 0.92, hy + buy * batL * 0.92);
-    ctx.stroke();
+    c.shadowBlur = 0; c.lineCap = 'round';
+    c.strokeStyle = '#7a4a22'; c.lineWidth = Math.max(2, 2.8 * s);
+    c.beginPath();
+    c.moveTo(hx - bux * 3 * s, hy - buy * 3 * s);
+    c.lineTo(hx + bux * batL * 0.5, hy + buy * batL * 0.5);
+    c.stroke();
+    c.strokeStyle = '#d7a267'; c.lineWidth = Math.max(3, 5 * s);
+    c.beginPath();
+    c.moveTo(hx + bux * batL * 0.42, hy + buy * batL * 0.42);
+    c.lineTo(hx + bux * batL, hy + buy * batL);
+    c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = Math.max(1, 1.4 * s);
+    c.beginPath();
+    c.moveTo(hx + bux * batL * 0.55, hy + buy * batL * 0.55);
+    c.lineTo(hx + bux * batL * 0.92, hy + buy * batL * 0.92);
+    c.stroke();
 
-    ctx.restore();
+    c.restore();
+
+    if (cheering) return;     // the winner's name is a separate, stationary DOM label
 
     // number tag
-    ctx.globalAlpha = fade;
-    ctx.font = `900 ${Math.max(10, 8.5 * s)}px sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(0,0,0,.55)';
-    ctx.fillText(p.name, sx + 1, sy - 30 * s + 1);
-    ctx.fillStyle = '#fff';
-    ctx.fillText(p.name, sx, sy - 30 * s);
+    c.globalAlpha = fade;
+    c.font = `900 ${Math.max(10, 8.5 * s)}px sans-serif`;
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = 'rgba(0,0,0,.55)';
+    c.fillText(p.name, sx + 1, sy - 30 * s + 1);
+    c.fillStyle = '#fff';
+    c.fillText(p.name, sx, sy - 30 * s);
 
-    // special gauge — tiny bar over the name, gold + blinking once it's full
-    if (!p.falling && p.sp > 0.02) {
+    if (casting) {
+      const by = sy - 44 * s;
+      c.fillStyle = '#171328'; c.strokeStyle = p.special.color; c.lineWidth = 2;
+      c.beginPath(); c.roundRect(sx - 13, by - 12, 26, 24, 8); c.fill(); c.stroke();
+      c.font = '16px sans-serif'; c.fillText(p.special.icon, sx, by + 1);
+    }
+    // Full gauges stay steadily gold, without rapid blinking.
+    if (!casting && !p.falling && p.sp > 0.02) {
       const bw = p.r * 1.5, bh = Math.max(3, 1.7 * s);
       const bx = sx - bw / 2, by = sy - 42 * s;
       const full = p.sp >= 1;
-      ctx.fillStyle = 'rgba(0,0,0,.5)';
-      ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
-      ctx.fillStyle = full ? (Math.sin(gameT * 16) > 0 ? '#fff' : '#ffd23f') : '#3fd0ff';
-      if (full) { ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 10; }
-      ctx.fillRect(bx, by, bw * Math.min(1, p.sp), bh);
-      ctx.shadowBlur = 0;
+      c.fillStyle = 'rgba(0,0,0,.5)';
+      c.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+      c.fillStyle = full ? '#ffd23f' : '#3fd0ff';
+      if (full) { c.shadowColor = '#ffd23f'; c.shadowBlur = 10; }
+      c.fillRect(bx, by, bw * Math.min(1, p.sp), bh);
+      c.shadowBlur = 0;
     }
-    ctx.globalAlpha = 1;
+    c.globalAlpha = 1;
   }
 
   // ---------- Render ----------
@@ -978,26 +1095,7 @@
 
     for (const p of front) drawStickman(p, dangerDiv);
 
-    // hit-stop impact FX: white streak + speed lines along the collision normal
-    if (impactFX && impactFX.t > 0) {
-      const f = impactFX;
-      ctx.save();
-      ctx.globalAlpha = clamp(f.t / 0.09, 0, 1);
-      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-      ctx.shadowColor = '#fff'; ctx.shadowBlur = 14;
-      ctx.beginPath();
-      ctx.moveTo(f.x - f.nx * 26, f.y - f.ny * 26 * TILT);
-      ctx.lineTo(f.x + f.nx * 26, f.y + f.ny * 26 * TILT);
-      for (let k = 0; k < 3; k++) {
-        const a = Math.atan2(f.ny, f.nx) + Math.PI / 2 + (k - 1) * 0.5;
-        ctx.moveTo(f.x + Math.cos(a) * 12, f.y + Math.sin(a) * 12);
-        ctx.lineTo(f.x + Math.cos(a) * 30, f.y + Math.sin(a) * 30);
-      }
-      ctx.stroke();
-      ctx.beginPath(); ctx.arc(f.x, f.y, 10, 0, 7);
-      ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fill();
-      ctx.restore();
-    }
+    fx.draw();
 
     for (const f of floaters) {
       ctx.globalAlpha = Math.max(0, f.life);
@@ -1044,6 +1142,27 @@
       ctx.fillText(banner.text, 0, 0);
       ctx.restore();
     }
+    if (state === 'over') drawChampion();
+  }
+
+  function drawChampion() {
+    if (!winner) return;
+    const { width: w, height: h } = winnerPortrait.getBoundingClientRect();
+    if (!w || !h) return;
+    if (winnerPortrait.width !== Math.round(w * DPR) || winnerPortrait.height !== Math.round(h * DPR)) {
+      winnerPortrait.width = Math.round(w * DPR); winnerPortrait.height = Math.round(h * DPR);
+    }
+    const c = winnerCtx;
+    c.setTransform(DPR, 0, 0, DPR, 0, 0); c.clearRect(0, 0, w, h);
+    fx.victory(c, w, h, victoryT, winner.color);
+    const k = clamp(victoryT / 0.65, 0, 1) - 1;
+    const zoom = reduceMotion ? 1 : 0.4 + 0.6 * (1 + 2.70158 * k * k * k + 1.70158 * k * k);
+    const footY = h * 0.89;
+    c.save(); c.translate(w / 2, footY); c.scale(zoom, zoom); c.translate(-w / 2, -footY);
+    drawStickman({ ...winner, x: w / 2, y: arena.cy + (footY - arena.cy) / TILT,
+      r: Math.min(w * 0.125, h * 0.175), z: 0, vx: 0, vy: 0, falling: false,
+      teeter: 0, squash: 0, swingT: -1, special: null, lookX: 0, lookY: 0 }, 0, c, victoryT);
+    c.restore();
   }
 
   // ---------- Countdown (dt-driven — throttle-safe) ----------
@@ -1082,6 +1201,7 @@
     if (realDt < STEP * 0.9) return;
     last = now;
     if (realDt > 0.05) realDt = 0.05;
+    fx.update(realDt * (freezeT > 0 ? 0.3 : timeScale));
 
     // embedded panes don't always fire 'resize' — poll for viewport drift
     if (now - lastSizeCheck > 500) {
@@ -1092,11 +1212,9 @@
     // hit-stop: freeze the world, keep rendering the held pose
     if (freezeT > 0) {
       freezeT -= realDt;
-      if (impactFX) impactFX.t -= realDt * 0.4;
       render();
       return;
     }
-    if (impactFX) { impactFX.t -= realDt; if (impactFX.t <= 0) impactFX = null; }
     if (flashT > 0) flashT -= realDt;
     if (banner) { banner.t += realDt; if (banner.t > banner.dur) banner = null; }
 
@@ -1109,6 +1227,7 @@
     if (state === 'countdown') tickCountdown(realDt);
     else if (state === 'playing') update(dt, fm);
     else if (state === 'over') {
+      victoryT += realDt;
       if (winner && winner.alive) {
         if (winner.falling) {
           // staggered double-KO: the "winner" fell last — let them finish the fall, no resurrection
@@ -1154,7 +1273,9 @@
   // ---------- Winner screen ----------
   function showWinner() {
     const ws = document.getElementById('winScreen');
+    victoryT = 0;
     document.getElementById('winName').textContent = winner ? dispName(winner) : '-';
+    winnerPortrait.setAttribute('aria-label', winner ? T.winnerRoar(dispName(winner)) : '');
     const list = document.getElementById('rankList');
     list.innerHTML = '';
     const ranked = [];
