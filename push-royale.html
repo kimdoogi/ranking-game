@@ -11,7 +11,7 @@
   gtag('config', 'G-TNX16BV3PS');
 </script>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>밀어내기 배틀 로얄 🏆 사다리게임·룰렛 대신 이름 뽑기 | 무료 브라우저 미니게임</title>
 
 <!-- SEO -->
@@ -69,7 +69,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="push-royale.css?v=2c1728fe18" />
+<link rel="stylesheet" href="push-royale.css?v=3c300751a7" />
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -79,10 +79,15 @@
   <button id="muteBtn" type="button" aria-pressed="false" aria-label="소리 끄기" title="소리 끄기">🔊</button>
 </div>
 
-<div id="hud">
+<div id="hud" hidden>
   <div class="pill">🎯 남은 인원 <span class="big" id="aliveCount">0</span></div>
-  <button id="shakeBtn">💥 흔들기!</button>
+  <div id="stageStatus" class="pill stageStatus"></div>
 </div>
+<section id="matchFeed" hidden aria-label="LIVE · 생존 중계">
+  <div class="feedTitle">LIVE · 생존 중계</div>
+  <strong id="matchHeadline"></strong>
+  <div id="eliminationFeed" role="log" aria-live="polite" aria-relevant="additions"></div>
+</section>
 <div id="specialFeed" role="status" aria-live="polite" aria-relevant="additions"></div>
 
 <div id="countdown"></div>
@@ -92,6 +97,7 @@
   <div class="subtitle">야구방망이로 다 날려버려라! 마지막 1명이 우승 🏆
     <span class="tagline">사다리게임·룰렛 대신 쓰는 이름 뽑기 — 벌칙·순서·내기 정하기</span>
   </div>
+<p class="arenaIntro">☕ 이름을 넣고, 누가 끝까지 살아남는지 지켜보세요.<br>자동 전투 · 예고된 폭발 · 마지막 한 명까지!</p>
   <div class="control">
     <label>참가자 추가 <span class="hint"><b>이름 * 4</b> 처럼 입력하고 추가하기 · 중복 OK</span></label>
     <div class="addRow">
@@ -108,6 +114,7 @@
     <div class="lobbyHint" id="lobbyHint"></div>
   </div>
   <button class="playBtn" id="startBtn">▶ 시작!</button>
+  <button class="demoBtn" id="demoBtn" type="button">⚡ 이름 없이 12명으로 바로 체험</button>
 </div>
 
 <div class="overlay hidden royaleWin" id="winScreen">
@@ -148,6 +155,12 @@ window.T = {
   spDash: '로켓 돌진',
   spBolt: '번개 연쇄',
   spQuake: '지진 강타',
+  stageOpening: '⚔️ 배틀 시작',
+  stageShrinking: '🔥 무대 축소 중',
+  arenaWarning: '⚠️ 폭발 주의!',
+  arenaPulse: '🌊 중앙 충격파!',
+  watchHint: '마지막까지 살아남을 이름은?',
+  place: n => `${n}위`,
   winnerRoar: name => `${name}의 우승 포효`,
   cardTitle: '🏆 밀어내기 배틀 로얄',
   cardPlayers: n => `${n}명 참가`,
@@ -166,7 +179,7 @@ window.T = {
   numName: n => n + '번'
 };
 </script>
-<script src="push-royale-fx.js?v=d7459f0745"></script>
-<script src="push-royale.js?v=fb117c73bd"></script>
+<script src="push-royale-fx.js?v=b4e96b7f7d"></script>
+<script src="push-royale.js?v=7dfc7e7661"></script>
 </body>
 </html>

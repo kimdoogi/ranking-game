@@ -11,7 +11,7 @@
   gtag('config', 'G-TNX16BV3PS');
 </script>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Push Royale 🏆 Random Name Picker — Ladder Game & Roulette Alternative | Free Browser Game</title>
 
 <!-- SEO -->
@@ -69,7 +69,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="push-royale.css?v=2c1728fe18" />
+<link rel="stylesheet" href="push-royale.css?v=3c300751a7" />
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -79,10 +79,15 @@
   <button id="muteBtn" type="button" aria-pressed="false" aria-label="Mute" title="Mute">🔊</button>
 </div>
 
-<div id="hud">
+<div id="hud" hidden>
   <div class="pill">🎯 Left <span class="big" id="aliveCount">0</span></div>
-  <button id="shakeBtn">💥 Shake!</button>
+  <div id="stageStatus" class="pill stageStatus"></div>
 </div>
+<section id="matchFeed" hidden aria-label="LIVE · Battle feed">
+  <div class="feedTitle">LIVE · Battle feed</div>
+  <strong id="matchHeadline"></strong>
+  <div id="eliminationFeed" role="log" aria-live="polite" aria-relevant="additions"></div>
+</section>
 <div id="specialFeed" role="status" aria-live="polite" aria-relevant="additions"></div>
 
 <div id="countdown"></div>
@@ -92,6 +97,7 @@
   <div class="subtitle">Swing the bat, knock everyone off, last one standing wins 🏆
     <span class="tagline">A random name picker instead of a ladder game or roulette wheel — penalties, turn order, who pays</span>
   </div>
+<p class="arenaIntro">☕ Add names and watch who survives.<br>Auto battles · Incoming blasts · Last one standing!</p>
   <div class="control">
     <label>Add players <span class="hint">type <b>name * 4</b> and hit Add · duplicates OK</span></label>
     <div class="addRow">
@@ -108,6 +114,7 @@
     <div class="lobbyHint" id="lobbyHint"></div>
   </div>
   <button class="playBtn" id="startBtn">▶ Start!</button>
+  <button class="demoBtn" id="demoBtn" type="button">⚡ Quick play with 12 fighters</button>
 </div>
 
 <div class="overlay hidden royaleWin" id="winScreen">
@@ -148,6 +155,12 @@ window.T = {
   spDash: 'Rocket Rush',
   spBolt: 'Chain Lightning',
   spQuake: 'Quake Slam',
+  stageOpening: '⚔️ Battle on',
+  stageShrinking: '🔥 Arena shrinking',
+  arenaWarning: '⚠️ Incoming blast!',
+  arenaPulse: '🌊 Center shockwave!',
+  watchHint: 'Whose name will be last standing?',
+  place: n => `#${n}`,
   winnerRoar: name => `${name} roars in victory`,
   cardTitle: '🏆 Push Royale',
   cardPlayers: n => `${n} players`,
@@ -166,7 +179,7 @@ window.T = {
   numName: n => '#' + n
 };
 </script>
-<script src="push-royale-fx.js?v=d7459f0745"></script>
-<script src="push-royale.js?v=fb117c73bd"></script>
+<script src="push-royale-fx.js?v=b4e96b7f7d"></script>
+<script src="push-royale.js?v=7dfc7e7661"></script>
 </body>
 </html>

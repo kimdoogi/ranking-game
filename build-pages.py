@@ -266,7 +266,10 @@ META = {
             titleHtml='밀어내기<br>배틀 로얄',
             subtitle='야구방망이로 다 날려버려라! 마지막 1명이 우승 🏆',
             tagline='사다리게임·룰렛 대신 쓰는 이름 뽑기 — 벌칙·순서·내기 정하기',
-            hud='🎯 남은 인원', shake='💥 흔들기!', share='📸 결과 카드 공유'),
+            hud='🎯 남은 인원', share='📸 결과 카드 공유',
+            feedTitle='LIVE · 생존 중계',
+            playHint='☕ 이름을 넣고, 누가 끝까지 살아남는지 지켜보세요.<br>자동 전투 · 예고된 폭발 · 마지막 한 명까지!',
+            demo='⚡ 이름 없이 12명으로 바로 체험'),
         'en': dict(
             name='Push Royale',
             title='Push Royale 🏆 Random Name Picker — Ladder Game & Roulette Alternative | Free Browser Game',
@@ -280,7 +283,10 @@ META = {
             titleHtml='Push<br>Royale',
             subtitle='Swing the bat, knock everyone off, last one standing wins 🏆',
             tagline='A random name picker instead of a ladder game or roulette wheel — penalties, turn order, who pays',
-            hud='🎯 Left', shake='💥 Shake!', share='📸 Share result card'),
+            hud='🎯 Left', share='📸 Share result card',
+            feedTitle='LIVE · Battle feed',
+            playHint='☕ Add names and watch who survives.<br>Auto battles · Incoming blasts · Last one standing!',
+            demo='⚡ Quick play with 12 fighters'),
         'zh': dict(
             name='推挤大逃杀',
             title='推挤大逃杀 🏆 随机点名抽签 — 替代阶梯抽签和轮盘 | 免费网页小游戏',
@@ -294,7 +300,10 @@ META = {
             titleHtml='推挤<br>大逃杀',
             subtitle='挥棒把对手全部打飞，最后一人获胜 🏆',
             tagline='代替阶梯抽签和轮盘的随机点名工具 — 定惩罚、定顺序、定谁买单',
-            hud='🎯 剩余', shake='💥 摇一摇！', share='📸 分享结果卡'),
+            hud='🎯 剩余', share='📸 分享结果卡',
+            feedTitle='LIVE · 战况直播',
+            playHint='☕ 输入名字，看看谁能坚持到最后。<br>自动战斗 · 爆炸预警 · 最后一人获胜！',
+            demo='⚡ 12人快速试玩，无需输入名字'),
         'ja': dict(
             name='プッシュバトルロイヤル',
             title='プッシュバトルロイヤル 🏆 あみだくじ・ルーレット代わりの名前抽選 | 無料ブラウザゲーム',
@@ -308,7 +317,10 @@ META = {
             titleHtml='プッシュ<br>バトルロイヤル',
             subtitle='バットで全員吹き飛ばせ！最後の1人が優勝 🏆',
             tagline='あみだくじ・ルーレット代わりの名前抽選 — 罰ゲーム・順番・おごり決め',
-            hud='🎯 残り', shake='💥 シェイク！', share='📸 結果カードを共有'),
+            hud='🎯 残り', share='📸 結果カードを共有',
+            feedTitle='LIVE · バトル実況',
+            playHint='☕ 名前を入れて、最後の1人を見届けよう。<br>自動バトル · 爆発予告 · 最後まで目が離せない！',
+            demo='⚡ 名前なしで12人バトルを体験'),
     },
 }
 
@@ -338,6 +350,12 @@ T_PUSH = {
   spDash: '로켓 돌진',
   spBolt: '번개 연쇄',
   spQuake: '지진 강타',
+  stageOpening: '⚔️ 배틀 시작',
+  stageShrinking: '🔥 무대 축소 중',
+  arenaWarning: '⚠️ 폭발 주의!',
+  arenaPulse: '🌊 중앙 충격파!',
+  watchHint: '마지막까지 살아남을 이름은?',
+  place: n => `${n}위`,
   winnerRoar: name => `${name}의 우승 포효`,
   cardTitle: '🏆 밀어내기 배틀 로얄',
   cardPlayers: n => `${n}명 참가`,
@@ -370,6 +388,12 @@ T_PUSH = {
   spDash: 'Rocket Rush',
   spBolt: 'Chain Lightning',
   spQuake: 'Quake Slam',
+  stageOpening: '⚔️ Battle on',
+  stageShrinking: '🔥 Arena shrinking',
+  arenaWarning: '⚠️ Incoming blast!',
+  arenaPulse: '🌊 Center shockwave!',
+  watchHint: 'Whose name will be last standing?',
+  place: n => `#${n}`,
   winnerRoar: name => `${name} roars in victory`,
   cardTitle: '🏆 Push Royale',
   cardPlayers: n => `${n} players`,
@@ -402,6 +426,12 @@ T_PUSH = {
   spDash: '火箭冲刺',
   spBolt: '连锁闪电',
   spQuake: '地震重击',
+  stageOpening: '⚔️ 战斗开始',
+  stageShrinking: '🔥 擂台缩小中',
+  arenaWarning: '⚠️ 爆炸预警！',
+  arenaPulse: '🌊 中央冲击波！',
+  watchHint: '谁的名字会留到最后？',
+  place: n => `第${n}名`,
   winnerRoar: name => `${name}的胜利咆哮`,
   cardTitle: '🏆 推挤大逃杀',
   cardPlayers: n => `${n} 人参加`,
@@ -434,6 +464,12 @@ T_PUSH = {
   spDash: 'ロケット突進',
   spBolt: '連鎖ライトニング',
   spQuake: '大地クラッシュ',
+  stageOpening: '⚔️ バトル開始',
+  stageShrinking: '🔥 ステージ縮小中',
+  arenaWarning: '⚠️ 爆発注意！',
+  arenaPulse: '🌊 中央に衝撃波！',
+  watchHint: '最後に残る名前は？',
+  place: n => `${n}位`,
   winnerRoar: name => `${name}の勝利の雄叫び`,
   cardTitle: '🏆 プッシュバトルロイヤル',
   cardPlayers: n => `${n}人参加`,
@@ -815,8 +851,11 @@ def game_page(slug, lang):
                f'<div id="ffChip">{m["ff"]}</div>\n<div id="ticker"></div>\n')
         crown, extra = '🏆', ''
     else:
-        hud = (f'<div id="hud">\n  <div class="pill">{m["hud"]} <span class="big" id="aliveCount">0</span></div>\n'
-               f'  <button id="shakeBtn">{m["shake"]}</button>\n</div>\n'
+        hud = (f'<div id="hud" hidden>\n  <div class="pill">{m["hud"]} <span class="big" id="aliveCount">0</span></div>\n'
+               '  <div id="stageStatus" class="pill stageStatus"></div>\n</div>\n'
+               f'<section id="matchFeed" hidden aria-label="{m["feedTitle"]}">\n  <div class="feedTitle">{m["feedTitle"]}</div>\n'
+               '  <strong id="matchHeadline"></strong>\n'
+               '  <div id="eliminationFeed" role="log" aria-live="polite" aria-relevant="additions"></div>\n</section>\n'
                '<div id="specialFeed" role="status" aria-live="polite" aria-relevant="additions"></div>\n')
         crown = '👑'
         extra = f'  <button class="shareBtn" id="shareBtn" type="button">{m["share"]}</button>\n'
@@ -825,8 +864,13 @@ def game_page(slug, lang):
     share_url = f"  shareUrl: '{page_url(slug, lang)}',\n" if slug == 'push-royale' else ''
     win_screen = WIN_SCREEN.substitute(crown=crown, again=r['again'], extra=extra)
     effects_script = ''
+    play_hint = ''
+    demo_button = ''
     game_script = f'{slug}.js'
     if slug == 'push-royale':
+        head = head.replace('maximum-scale=1.0, user-scalable=no', 'viewport-fit=cover')
+        play_hint = f'<p class="arenaIntro">{m["playHint"]}</p>\n'
+        demo_button = f'  <button class="demoBtn" id="demoBtn" type="button">{m["demo"]}</button>\n'
         rank_title = {'ko': '최종 순위', 'en': 'Final standings', 'zh': '最终排名', 'ja': '最終ランキング'}[lang]
         win_screen = f'''<div class="overlay hidden royaleWin" id="winScreen">
   <div class="winnerLayout">
@@ -860,8 +904,8 @@ def game_page(slug, lang):
   <div class="subtitle">{m['subtitle']}
     <span class="tagline">{m['tagline']}</span>
   </div>
-""" + ROSTER_BLOCK.substitute(presets=presets, **r) + f"""  <button class="playBtn" id="startBtn">{m.get('start', r['start'])}</button>
-</div>
+""" + play_hint + ROSTER_BLOCK.substitute(presets=presets, **r) + f"""  <button class="playBtn" id="startBtn">{m.get('start', r['start'])}</button>
+{demo_button}</div>
 
 """ + win_screen + f"""
 {toast}<script>

@@ -11,7 +11,7 @@
   gtag('config', 'G-TNX16BV3PS');
 </script>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>推挤大逃杀 🏆 随机点名抽签 — 替代阶梯抽签和轮盘 | 免费网页小游戏</title>
 
 <!-- SEO -->
@@ -69,7 +69,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="push-royale.css?v=2c1728fe18" />
+<link rel="stylesheet" href="push-royale.css?v=3c300751a7" />
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -79,10 +79,15 @@
   <button id="muteBtn" type="button" aria-pressed="false" aria-label="静音" title="静音">🔊</button>
 </div>
 
-<div id="hud">
+<div id="hud" hidden>
   <div class="pill">🎯 剩余 <span class="big" id="aliveCount">0</span></div>
-  <button id="shakeBtn">💥 摇一摇！</button>
+  <div id="stageStatus" class="pill stageStatus"></div>
 </div>
+<section id="matchFeed" hidden aria-label="LIVE · 战况直播">
+  <div class="feedTitle">LIVE · 战况直播</div>
+  <strong id="matchHeadline"></strong>
+  <div id="eliminationFeed" role="log" aria-live="polite" aria-relevant="additions"></div>
+</section>
 <div id="specialFeed" role="status" aria-live="polite" aria-relevant="additions"></div>
 
 <div id="countdown"></div>
@@ -92,6 +97,7 @@
   <div class="subtitle">挥棒把对手全部打飞，最后一人获胜 🏆
     <span class="tagline">代替阶梯抽签和轮盘的随机点名工具 — 定惩罚、定顺序、定谁买单</span>
   </div>
+<p class="arenaIntro">☕ 输入名字，看看谁能坚持到最后。<br>自动战斗 · 爆炸预警 · 最后一人获胜！</p>
   <div class="control">
     <label>添加参与者 <span class="hint">按 <b>名字 * 4</b> 输入后点添加 · 可重复</span></label>
     <div class="addRow">
@@ -108,6 +114,7 @@
     <div class="lobbyHint" id="lobbyHint"></div>
   </div>
   <button class="playBtn" id="startBtn">▶ 开始！</button>
+  <button class="demoBtn" id="demoBtn" type="button">⚡ 12人快速试玩，无需输入名字</button>
 </div>
 
 <div class="overlay hidden royaleWin" id="winScreen">
@@ -148,6 +155,12 @@ window.T = {
   spDash: '火箭冲刺',
   spBolt: '连锁闪电',
   spQuake: '地震重击',
+  stageOpening: '⚔️ 战斗开始',
+  stageShrinking: '🔥 擂台缩小中',
+  arenaWarning: '⚠️ 爆炸预警！',
+  arenaPulse: '🌊 中央冲击波！',
+  watchHint: '谁的名字会留到最后？',
+  place: n => `第${n}名`,
   winnerRoar: name => `${name}的胜利咆哮`,
   cardTitle: '🏆 推挤大逃杀',
   cardPlayers: n => `${n} 人参加`,
@@ -166,7 +179,7 @@ window.T = {
   numName: n => n + ' 号'
 };
 </script>
-<script src="push-royale-fx.js?v=d7459f0745"></script>
-<script src="push-royale.js?v=fb117c73bd"></script>
+<script src="push-royale-fx.js?v=b4e96b7f7d"></script>
+<script src="push-royale.js?v=7dfc7e7661"></script>
 </body>
 </html>

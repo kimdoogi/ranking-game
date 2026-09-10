@@ -79,9 +79,69 @@ window.PushRoyaleFX = class {
     c.restore();
   }
 
-  trail(p, gy) {
+  floor(x, y, radius, tilt, suddenDeath) {
+    const c = this.ctx;
+    c.save(); c.translate(x, y); c.scale(1, tilt);
+    c.beginPath(); c.arc(0, 0, radius, 0, Math.PI * 2); c.clip();
+    c.strokeStyle = 'rgba(156,184,255,.12)'; c.lineWidth = 1;
+    for (let i = -300; i <= 300; i += 60) {
+      c.beginPath(); c.moveTo(i, -340); c.lineTo(i, 340);
+      c.moveTo(-340, i); c.lineTo(340, i); c.stroke();
+    }
+    c.strokeStyle = suddenDeath ? 'rgba(255,107,107,.3)' : 'rgba(150,202,255,.22)';
+    for (const k of [0.35, 0.7]) {
+      c.beginPath(); c.arc(0, 0, radius * k, 0, Math.PI * 2); c.stroke();
+    }
+    for (let i = 0; i < 12; i++) {
+      const a = i * Math.PI / 6;
+      c.lineWidth = 5;
+      c.beginPath(); c.arc(0, 0, Math.max(1, radius - 7), a + 0.08, a + 0.28); c.stroke();
+    }
+    c.rotate(Math.PI / 4); c.lineWidth = 2;
+    c.strokeRect(-12, -12, 24, 24);
+    c.restore();
+  }
+
+  pulse(b, gy, tilt) {
+    const c = this.ctx, warning = b.age < b.delay;
+    const progress = Math.max(0, Math.min(1, (b.age - b.delay) / 0.38));
+    const fade = Math.max(0, 1 - Math.max(0, b.age - b.delay - 0.28) / 0.42);
+    const color = b.pulse ? '#72f5ff' : '#ff9062';
+    c.save(); c.translate(b.x, gy); c.scale(1, tilt);
+    c.fillStyle = color; c.strokeStyle = color;
+    c.globalAlpha = warning ? 0.09 : 0.13 * fade;
+    c.beginPath(); c.arc(0, 0, b.radius, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = warning ? 0.75 : fade;
+    c.lineWidth = warning ? 2 : 4;
+    if (warning) c.setLineDash([8, 7]);
+    c.beginPath(); c.arc(0, 0, b.radius, 0, Math.PI * 2); c.stroke(); c.setLineDash([]);
+    if (warning) {
+      c.lineWidth = 5;
+      c.beginPath(); c.arc(0, 0, b.radius, -Math.PI / 2, -Math.PI / 2 + b.age / b.delay * Math.PI * 2); c.stroke();
+    } else {
+      c.shadowColor = color; c.shadowBlur = this.reduceMotion ? 0 : 16;
+      c.strokeStyle = '#eaffff'; c.lineWidth = 3;
+      c.beginPath(); c.arc(0, 0, b.radius * (this.reduceMotion ? 1 : progress), 0, Math.PI * 2); c.stroke();
+      if (!this.reduceMotion) for (let i = 0; i < 10; i++) {
+        const a = i * Math.PI / 5, r = b.radius * progress;
+        c.strokeStyle = color; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(Math.cos(a) * r * 0.6, Math.sin(a) * r * 0.6);
+        c.lineTo(Math.cos(a) * r, Math.sin(a) * r); c.stroke();
+      }
+    }
+    c.restore();
+    if (warning) {
+      c.save(); c.translate(b.x, gy - 15);
+      c.fillStyle = '#111629'; c.strokeStyle = color; c.lineWidth = 2;
+      c.beginPath(); c.arc(0, 0, 17, 0, Math.PI * 2); c.fill(); c.stroke();
+      c.fillStyle = color; c.font = '900 22px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(b.pulse ? '◎' : '!', 0, 1); c.restore();
+    }
+  }
+
+  trail(p, gy, tilt) {
     if (this.reduceMotion) return;
-    const c = this.ctx, vx = p.vx, vy = p.vy * 0.52;
+    const c = this.ctx, vx = p.vx, vy = p.vy * tilt;
     const speed = Math.hypot(vx, vy);
     if (speed < 1) return;
     c.save();
@@ -96,12 +156,12 @@ window.PushRoyaleFX = class {
     c.restore();
   }
 
-  special(p, gy, reach, wind, hit) {
+  special(p, gy, reach, wind, hit, tilt) {
     const c = this.ctx, skill = p.special, t = p.swingT;
     const charge = Math.min(1, t / wind);
     const progress = Math.max(0, Math.min(1, (t - wind) / hit));
     const fade = t < wind + hit ? 1 : Math.max(0, 1 - (t - wind - hit) / 0.20);
-    c.save(); c.translate(p.x, gy - p.z * 0.25); c.scale(1, 0.52);
+    c.save(); c.translate(p.x, gy - p.z * 0.25); c.scale(1, tilt);
     c.strokeStyle = skill.color; c.fillStyle = skill.color;
     c.shadowColor = skill.color; c.shadowBlur = this.reduceMotion ? 0 : 14;
     c.lineCap = 'round';

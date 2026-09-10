@@ -8,7 +8,7 @@
   try { muted = localStorage.getItem('minigame_muted') === '1'; } catch (e) {}
   let W = 0, H = 0, DPR = 1;
 
-  const TILT = 0.52;   // 2.5D: vertical squash of the play plane
+  let TILT = 0.58;   // Portrait gets a higher viewpoint, without changing combat geometry.
   const SD_TIME = 32;  // sudden death (s, game time) — bats end matches faster than shoving did
   const COLLAPSE_TIME = 58; // hard cap: arena collapses to 0
 
@@ -40,30 +40,12 @@
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
     W = window.innerWidth; H = window.innerHeight;
+    TILT = W < H ? 0.88 : 0.58;
     canvas.width = W * DPR; canvas.height = H * DPR;
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
-  // remap the whole world proportionally on viewport changes — the game may boot
-  // inside a not-yet-sized preview pane (tiny W/H) or be resized mid-match
-  function remapWorld() {
-    if (!arena || !arena.R0) return;
-    const oldCx = arena.cx, oldCy = arena.cy, oldR0 = arena.R0;
-    const cx = W / 2, cy = H * 0.54;
-    const R0n = Math.min(W * 0.42, H * 0.55);
-    if (!R0n || Math.abs(R0n - oldR0) < 1) return;
-    const k = R0n / oldR0;
-    arena.cx = cx; arena.cy = cy;
-    arena.R0 = R0n; arena.R *= k;
-    arena.scale = clamp(R0n / 340, 0.55, 1.2);
-    for (const p of players) {
-      p.x = cx + (p.x - oldCx) * k;
-      p.y = cy + (p.y - oldCy) * k;
-      p.r *= k; p.baseR *= k; p.mass = p.r * p.r;
-    }
-    cam = { x: W / 2, y: H * 0.5, zoom: cam.zoom, tx: W / 2, ty: H * 0.5, tz: cam.tz };
-  }
-  window.addEventListener('resize', () => { resize(); remapWorld(); });
+  window.addEventListener('resize', () => { resize(); frameArena(true); });
   resize();
 
   function rand(a, b) { return a + Math.random() * (b - a); }
@@ -155,6 +137,8 @@
   let victoryT = 0;
   let hbT = 0;                   // heartbeat timer
   let cam = { x: 0, y: 0, zoom: 1, tx: 0, ty: 0, tz: 1 };
+  let blasts = [], nextHazardT = 7, hazardCount = 0;
+  let nameTags = null;          // Per-frame label positions for the final three.
 
   function groundY(y) { return arena.cy + (y - arena.cy) * TILT; }
   const aliveEl = document.getElementById('aliveCount');
@@ -162,6 +146,81 @@
   specialFeed.setAttribute('aria-label', T.special);
   const winnerPortrait = document.getElementById('winnerPortrait');
   const winnerCtx = winnerPortrait.getContext('2d');
+  const stageStatus = document.getElementById('stageStatus');
+  const matchFeed = document.getElementById('matchFeed');
+  const matchHeadline = document.getElementById('matchHeadline');
+  const eliminationFeed = document.getElementById('eliminationFeed');
+
+  function viewport() {
+    const top = H < 500 ? 66 : W <= 640 ? 128 : 96, bottom = H < 500 ? 86 : 166;
+    return { x: W / 2, y: (top + H - bottom) / 2, w: Math.max(100, W - 32), h: Math.max(100, H - top - bottom) };
+  }
+
+  function frameArena(snap = false) {
+    if (!arena.R0) return;
+    const v = viewport(), r = reduceMotion ? arena.R0 : Math.max(70, arena.R);
+    // Keep the rim and every standing fighter visible, including their name and bat.
+    let left = arena.cx - r - 22, right = arena.cx + r + 22;
+    let top = arena.cy - r * TILT - 66, bottom = arena.cy + r * TILT + 30;
+    if (!reduceMotion) for (const p of players) {
+      if (!p.alive || (p.falling && p.fallT > 0.25)) continue;
+      left = Math.min(left, p.x - p.r * 2); right = Math.max(right, p.x + p.r * 2);
+      top = Math.min(top, groundY(p.y) - Math.max(0, p.z) - p.r * 5.5);
+      bottom = Math.max(bottom, groundY(p.y) + p.r);
+    }
+    cam.tx = (left + right) / 2; cam.ty = (top + bottom) / 2;
+    cam.tz = Math.min(v.w / (right - left), v.h / (bottom - top), W < H ? 1.2 : 1.65);
+    if (snap || reduceMotion) { cam.x = cam.tx; cam.y = cam.ty; cam.zoom = cam.tz; }
+  }
+
+  function updateBlasts(dt) {
+    if (gameT >= nextHazardT && arena.R > 45) {
+      const pulse = ++hazardCount % 3 === 0;
+      const angle = rand(0, Math.PI * 2), distance = rand(0.2, 0.65) * arena.R;
+      blasts.push({ x: arena.cx + (pulse ? 0 : Math.cos(angle) * distance), y: arena.cy + (pulse ? 0 : Math.sin(angle) * distance),
+        age: 0, delay: pulse ? 1.65 : 1.35, radius: pulse ? arena.R * 0.9 : Math.min(115, arena.R * 0.6), hitIds: [], pulse });
+      nextHazardT = gameT + (suddenDeath ? 4.5 : 7);
+      showBanner(pulse ? T.arenaPulse : T.arenaWarning, pulse ? '#72f5ff' : '#ff9062', 1.1);
+      beep(640, 0.10, 'triangle', 0.09, 420);
+    }
+    for (let i = blasts.length - 1; i >= 0; i--) {
+      const b = blasts[i], previous = b.age;
+      b.age += dt;
+      if (b.age < b.delay) continue;
+      if (previous < b.delay) {
+        addTrauma(0.35);
+        beep(100, 0.2, 'triangle', 0.22, 35);
+      }
+      const front = b.radius * clamp((b.age - b.delay) / 0.38, 0, 1);
+      for (const p of players) {
+        if (!p.alive || p.falling || b.hitIds.includes(p.id)) continue;
+        const dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy);
+        if (d > front || d > b.radius) continue;
+        b.hitIds.push(p.id);
+        const a = d > 0.01 ? Math.atan2(dy, dx) : p.id * 2.4;
+        const force = (b.pulse ? 6 : 8) * (1 - d / b.radius * 0.45);
+        p.vx = Math.cos(a) * force; p.vy = Math.sin(a) * force;
+        p.vz = Math.max(p.vz, 230); p.knockT = KNOCK_T; p.swingT = -1;
+        p.rimGrab = false; p.squash = 0.3;
+        if (p.teeter > 0) startFall(p);
+        fx.impact(p.x, groundY(p.y) - p.z - p.r, Math.atan2(Math.sin(a) * TILT, Math.cos(a)), b.pulse ? '#72f5ff' : '#ff9062', p.r * 1.3);
+      }
+      if (b.age > b.delay + 0.7) blasts.splice(i, 1);
+    }
+  }
+
+  function announceElimination(p) {
+    const row = document.createElement('div');
+    row.className = 'eliminationRow';
+    row.style.setProperty('--fighter-color', p.color);
+    const rank = document.createElement('span');
+    rank.className = 'eliminationRank'; rank.textContent = T.place(players.length - eliminationOrder.length + 1);
+    const name = document.createElement('strong');
+    name.textContent = dispName(p);
+    const label = document.createElement('span'); label.textContent = T.out;
+    row.append(rank, name, label); eliminationFeed.prepend(row);
+    while (eliminationFeed.children.length > 3) eliminationFeed.lastElementChild.remove();
+  }
 
   function announceSpecial(p) {
     const skill = p.special;
@@ -184,7 +243,7 @@
 
   function addTrauma(a) {
     if (reduceMotion) return;
-    if (timeScale < 0.999 || cam.zoom > 1.001) return;    // never shake while slow-mo/zoomed
+    if (timeScale < 0.999) return;
     const aliveNF = players.filter(p => p.alive && !p.falling).length;
     trauma = Math.min(1, trauma + a * (aliveNF <= 3 ? 0.5 : 1));
   }
@@ -213,13 +272,12 @@
     freezeT = 0; slowmo = { ts: 1, t: 0 }; timeScale = 1;
     flashT = 0; banner = null; koChainIdx = 0; koChainT = -9; fallTimes = []; hbT = 0;
     spUses = 0; spCounts = {}; victoryT = 0;
+    blasts = []; nextHazardT = 7; hazardCount = 0;
+    eliminationFeed.replaceChildren(); matchHeadline.textContent = T.watchHint;
 
-    const cx = W / 2, cy = H * 0.54;
-    const R = Math.min(W * 0.42, H * 0.55);
-    // motion scale: forces/speeds are proportional to arena size so phones get the
-    // same ~60s three-act match as a desktop (absolute px constants were tuned at R0≈340)
-    arena = { cx, cy, R, R0: R, scale: clamp(R / 340, 0.55, 1.2) };
-    cam = { x: W / 2, y: H * 0.5, zoom: 1, tx: W / 2, ty: H * 0.5, tz: 1 };
+    // A fixed world keeps reach, speed and collisions identical when a phone rotates.
+    const cx = 0, cy = 0, R = 340;
+    arena = { cx, cy, R, R0: R, scale: 1 };
 
     const r = Math.max(13, Math.min(24, R / (n * 0.42)));
     const spawnR = R - r * 2.2;
@@ -248,6 +306,9 @@
       });
     }
     document.getElementById('aliveCount').textContent = n;
+    aliveEl._v = n;
+    if (n <= 3) matchHeadline.textContent = players.map(dispName).join('  VS  ');
+    frameArena(true);
   }
 
   // ---------- Effects ----------
@@ -282,10 +343,7 @@
   }
 
   // ---------- Bat swings ----------
-  // Phones get a big radius on a small arena, so cap reach against the arena too —
-  // otherwise a bat covers half the ring and everyone is permanently in range.
-  // A special sweeps wider, but the arena cap still binds — applying the multiplier
-  // on top of the cap let a phone-sized spin cover 44% of the ring.
+  // Cap reach against the shrinking ring so the final duel still needs positioning.
   function batReach(p, special) {
     return special ? Math.min(p.r * (1 + BAT_LEN) * special.reach, arena.R * 0.36)
                    : Math.min(p.r * (1 + BAT_LEN), arena.R * 0.30);
@@ -461,6 +519,10 @@
     const minR = arena.R0 * (suddenDeath ? 0.20 : 0.34);
     if (gameT >= COLLAPSE_TIME) arena.R = Math.max(1, arena.R - (arena.R0 / 2.5) * dt);  // collapse — physics crowns the winner
     else arena.R = Math.max(minR, arena.R - rate * dt);
+    updateBlasts(dt);
+    const phase = suddenDeath ? T.suddenDeath : gameT > 8 ? T.stageShrinking : T.stageOpening;
+    const statusText = `${phase} · ${Math.floor(gameT)}s`;
+    if (stageStatus.textContent !== statusText) stageStatus.textContent = statusText;
 
     // ----- aggression curve -----
     let aggr = (0.020 + 0.00028 * gameT + 0.002 * elimCount) * arena.scale;
@@ -498,8 +560,6 @@
     if (state === 'playing' && !finalSlowmoDone && aliveNF === 1 && aliveAll.length > 1) {
       finalSlowmoDone = true;                                // the match-winning fall — savor it
       setSlowmo(0.3, 0.9);
-      const faller = aliveAll.find(p => p.falling);
-      if (faller) { cam.tx = faller.x; cam.ty = groundY(faller.y); cam.tz = 1.5; }
     }
 
     // ----- heartbeat -----
@@ -513,18 +573,7 @@
     }
 
     // ----- camera targets -----
-    if (state === 'playing' && slowmo.t <= 0) {
-      if (aliveNF <= 3 && aliveNF >= 2) {
-        const survivors = aliveAll.filter(p => !p.falling);
-        let sx = 0, sy = 0;
-        for (const p of survivors) { sx += p.x; sy += groundY(p.y); }
-        sx /= survivors.length; sy /= survivors.length;
-        const mR = arena.R * 0.5;
-        cam.tx = clamp(sx, arena.cx - mR, arena.cx + mR);
-        cam.ty = clamp(sy, groundY(arena.cy) - mR * TILT, groundY(arena.cy) + mR * TILT);
-        cam.tz = faceOffDone ? 1.3 : 1.2;
-      } else if (aliveNF > 3) { cam.tx = W / 2; cam.ty = H * 0.5; cam.tz = 1; }
-    }
+    frameArena();
     const ck = 1 - Math.pow(0.94, fm);
     cam.x += (cam.tx - cam.x) * ck; cam.y += (cam.ty - cam.y) * ck; cam.zoom += (cam.tz - cam.zoom) * ck;
 
@@ -539,7 +588,10 @@
         p.rot += p.rotV * dt;
         if (p.z < -300) {
           p.alive = false; elimCount++;
-          if (!eliminationOrder.includes(p)) eliminationOrder.push(p);   // same-frame double-KO safe
+          if (!eliminationOrder.includes(p)) {
+            eliminationOrder.push(p);   // same-frame double-KO safe
+            announceElimination(p);
+          }
           checkWin();
         }
         continue;
@@ -765,9 +817,16 @@
     }
 
     trauma *= Math.pow(0.9, fm);
-    if (aliveEl._v !== aliveNF) { aliveEl._v = aliveNF; aliveEl.textContent = aliveNF; }
+    if (aliveEl._v !== aliveNF) {
+      aliveEl._v = aliveNF; aliveEl.textContent = aliveNF;
+      if (aliveNF <= 3) {
+        const names = players.filter(p => p.alive && !p.falling).map(dispName);
+        matchHeadline.textContent = names.length >= 2 ? names.join('  VS  ') : T.watchHint;
+      }
+    }
     window.__st = { t: Math.round(gameT * 10) / 10, aliveNF, state, sd: suddenDeath, spUses, spCounts,
-      W, H, cx: Math.round(arena.cx), R0: Math.round(arena.R0), iw: window.innerWidth };
+      zoom: cam.zoom, tilt: TILT, hazards: blasts.length, hazardCount,
+      W, H, cx: Math.round(arena.cx), R: arena.R, R0: arena.R0, iw: window.innerWidth };
   }
 
   function checkWin() {
@@ -778,8 +837,8 @@
       if (winner && !eliminationOrder.includes(winner)) eliminationOrder.push(winner);
       if (winner) winner.swingT = -1;
       specialFeed.replaceChildren();
+      blasts = [];
       victoryT = 0;
-      cam.tx = W / 2; cam.ty = H * 0.5; cam.tz = 1;
       setTimeout(showWinner, 1100);
       burstConfetti(); fanfare(); addTrauma(0.8);
     }
@@ -826,8 +885,8 @@
     if (fade <= 0) return;
 
     if (!cheering) {
-      if (p.knockT > 0 || (p.falling && gameT - p.batHitT < 1)) fx.trail(p, gy);
-      if (casting) fx.special(p, gy, batReach(p, p.special), swWind(p), swHit(p));
+      if (p.knockT > 0 || (p.falling && gameT - p.batHitT < 1)) fx.trail(p, gy, TILT);
+      if (casting) fx.special(p, gy, batReach(p, p.special), swWind(p), swHit(p), TILT);
     }
 
     c.save();
@@ -983,15 +1042,30 @@
 
     // number tag
     c.globalAlpha = fade;
-    c.font = `900 ${Math.max(10, 8.5 * s)}px sans-serif`;
+    const labelSize = Math.max(11 / cam.zoom, 8.5 * s);
+    c.font = `900 ${labelSize}px sans-serif`;
     c.textAlign = 'center'; c.textBaseline = 'middle';
+    const labelWidth = Math.min(c.measureText(p.name).width, 100 / cam.zoom);
+    // Names remain readable at the rim, even when a long name's fighter is half off-screen.
+    const labelX = clamp(sx, cam.x + (14 - W / 2) / cam.zoom + labelWidth / 2,
+      cam.x + (W / 2 - 14) / cam.zoom - labelWidth / 2);
+    let labelY = sy - 30 * s;
+    if (nameTags && !p.falling) {
+      const gap = labelSize * 1.4;
+      while (nameTags.some(t => Math.abs(labelX - t.x) < (labelWidth + t.width) / 2 + 4 && Math.abs(labelY - t.y) < gap)) labelY -= gap;
+      nameTags.push({ x: labelX, y: labelY, width: labelWidth });
+      if (labelY < sy - 30 * s) {
+        c.strokeStyle = p.color; c.lineWidth = 1;
+        c.beginPath(); c.moveTo(sx, sy - 28 * s); c.lineTo(labelX, labelY + labelSize * 0.6); c.stroke();
+      }
+    }
     c.fillStyle = 'rgba(0,0,0,.55)';
-    c.fillText(p.name, sx + 1, sy - 30 * s + 1);
+    c.fillText(p.name, labelX + 1, labelY + 1, labelWidth);
     c.fillStyle = '#fff';
-    c.fillText(p.name, sx, sy - 30 * s);
+    c.fillText(p.name, labelX, labelY, labelWidth);
 
     if (casting) {
-      const by = sy - 44 * s;
+      const by = labelY - 14 * s;
       c.fillStyle = '#171328'; c.strokeStyle = p.special.color; c.lineWidth = 2;
       c.beginPath(); c.roundRect(sx - 13, by - 12, 26, 24, 8); c.fill(); c.stroke();
       c.font = '16px sans-serif'; c.fillText(p.special.icon, sx, by + 1);
@@ -999,7 +1073,7 @@
     // Full gauges stay steadily gold, without rapid blinking.
     if (!casting && !p.falling && p.sp > 0.02) {
       const bw = p.r * 1.5, bh = Math.max(3, 1.7 * s);
-      const bx = sx - bw / 2, by = sy - 42 * s;
+      const bx = sx - bw / 2, by = labelY - 12 * s;
       const full = p.sp >= 1;
       c.fillStyle = 'rgba(0,0,0,.5)';
       c.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
@@ -1020,14 +1094,15 @@
 
     ctx.save();
     // camera (translate+scale only — no rotation)
-    ctx.translate(W * 0.5, H * 0.5);
+    const v = viewport();
+    ctx.translate(v.x, v.y);
+    // Shake in screen pixels so close-up mobile views never amplify it.
+    const shakePx = trauma * trauma * 7;
+    if (shakePx > 0.3 && timeScale > 0.999) {
+      ctx.translate(Math.sin(gameT * 83) * shakePx, Math.cos(gameT * 97) * shakePx);
+    }
     ctx.scale(cam.zoom, cam.zoom);
     ctx.translate(-cam.x, -cam.y);
-    // screen shake: trauma² displacement, suppressed during slow-mo/zoom
-    const shakePx = trauma * trauma * 14;
-    if (shakePx > 0.3 && timeScale > 0.999 && cam.zoom < 1.001) {
-      ctx.translate(rand(-shakePx, shakePx), rand(-shakePx, shakePx));
-    }
 
     const { cx, cy, R } = arena;
     const RT = R * TILT;
@@ -1039,6 +1114,7 @@
 
     // danger-glow gating: only when ≤8 alive or SD; divide alpha when >3 glowing
     const aliveNF = players.filter(p => p.alive && !p.falling).length;
+    nameTags = aliveNF <= 3 ? [] : null;
     let dangerDiv = 0;
     if (aliveNF <= 8 || suddenDeath) {
       const glowing = drawable.filter(p => !p.falling && p.teeter <= 0 &&
@@ -1064,6 +1140,7 @@
       g.addColorStop(1, 'rgba(38,32,78,.9)');
       ctx.beginPath(); ctx.ellipse(cx, cy, R, RT, 0, 0, 7);
       ctx.fillStyle = g; ctx.fill();
+      fx.floor(cx, cy, R, TILT, suddenDeath);
 
       // rim: gold normally, crimson pulse (≤1.5Hz alpha, never a background flash) in sudden death
       ctx.save();
@@ -1081,10 +1158,11 @@
       const r2 = Math.max(0, R - 14);
       ctx.beginPath(); ctx.ellipse(cx, cy, r2, r2 * TILT, 0, 0, 7);
       ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 2; ctx.shadowBlur = 0;
-      ctx.setLineDash([14, 18]); ctx.lineDashOffset = -spin * 40; ctx.stroke();
+      ctx.setLineDash([14, 18]); ctx.lineDashOffset = reduceMotion ? 0 : -spin * 40; ctx.stroke();
       ctx.setLineDash([]);
       ctx.restore();
     }
+    for (const b of blasts) fx.pulse(b, groundY(b.y), TILT);
 
     for (const p of particles) {
       ctx.globalAlpha = Math.max(0, p.life);
@@ -1127,13 +1205,15 @@
     // center banner (single, spring pop)
     if (banner) {
       const bt = banner.t, d = banner.dur;
-      const pop = bt < 0.25 ? 1.6 - 2.4 * bt : 1;
+      const pop = reduceMotion ? 1 : bt < 0.25 ? 1.25 - bt : 1;
       const alpha = bt > d - 0.3 ? (d - bt) / 0.3 : 1;
       ctx.save();
       ctx.globalAlpha = clamp(alpha, 0, 1);
-      ctx.translate(W / 2, H * 0.30);
+      ctx.translate(W / 2, H < 500 ? 82 : 142);
       ctx.scale(pop, pop);
-      ctx.font = '900 44px sans-serif';
+      ctx.font = `900 ${Math.min(36, W * 0.067)}px sans-serif`;
+      const fit = Math.min(1, (W - 32) / (ctx.measureText(banner.text).width * pop));
+      ctx.scale(fit, fit);
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(10,8,20,.85)';
       ctx.strokeText(banner.text, 0, 0);
@@ -1206,7 +1286,7 @@
     // embedded panes don't always fire 'resize' — poll for viewport drift
     if (now - lastSizeCheck > 500) {
       lastSizeCheck = now;
-      if (window.innerWidth !== W || window.innerHeight !== H) { resize(); remapWorld(); }
+      if (window.innerWidth !== W || window.innerHeight !== H) { resize(); frameArena(true); }
     }
 
     // hit-stop: freeze the world, keep rendering the held pose
@@ -1492,6 +1572,7 @@
   const countVal = document.getElementById('countVal');
   const lobbyHint = document.getElementById('lobbyHint');
   const startBtn = document.getElementById('startBtn');
+  const demoBtn = document.getElementById('demoBtn');
   let entries = [];   // [{ name, count }]
 
   const totalCount = () => entries.reduce((s, e) => s + e.count, 0);
@@ -1535,6 +1616,7 @@
     });
     const ok = total >= MIN_START;
     startBtn.disabled = !ok;
+    demoBtn.hidden = total > 0;
     startBtn.style.opacity = ok ? '' : '.4';
     startBtn.style.cursor = ok ? '' : 'not-allowed';
     lobbyHint.textContent = total === 0 ? T.hintEmpty
@@ -1568,37 +1650,23 @@
     playerCount = window.__names.length;
     initAudio();
     if (AC && AC.state === 'suspended') AC.resume();
+    nameInput.blur();
+    startBtn.blur();
     document.getElementById('startScreen').classList.add('hidden');
     document.getElementById('winScreen').classList.add('hidden');
     setupGame(playerCount);
     cdT = 0; cdIdx = -1;
     state = 'countdown';
+    document.getElementById('hud').hidden = false;
+    matchFeed.hidden = false;
+    stageStatus.textContent = T.stageOpening;
   }
   document.getElementById('startBtn').onclick = begin;
   document.getElementById('againBtn').onclick = begin;
-
-  let lastShake = 0;
-  const shakeBtn = document.getElementById('shakeBtn');
-  shakeBtn.onclick = () => {
-    if (state !== 'playing') return;
-    const now = performance.now();
-    if (now - lastShake < 3000) return;         // cooldown — spam can't end a match in 3s
-    lastShake = now;
-    shakeBtn.style.opacity = '0.4';
-    setTimeout(() => { shakeBtn.style.opacity = '1'; }, 3000);
-    for (const p of players) {
-      if (!p.alive || p.falling || p.teeter > 0) continue;
-      const a = rand(0, Math.PI * 2), f = rand(5, 11) * arena.scale;
-      p.vx += Math.cos(a) * f; p.vy += Math.sin(a) * f;
-      p.vz = Math.max(p.vz, rand(150, 320));
-      p.knockT = Math.max(p.knockT, 0.3);          // let the shake actually launch people
-      p.swingCd = rand(0, 0.2);                    // …into a flurry of swings
-    }
-    addTrauma(0.9); beep(90, 0.18, 'sawtooth', 0.16);
-    // burst on the arena itself (world coords — camera-safe)
-    for (let i = 0; i < 30; i++) {
-      const a = rand(0, Math.PI * 2), rr = Math.sqrt(Math.random()) * arena.R;
-      spawnHitParticles(arena.cx + Math.cos(a) * rr, groundY(arena.cy + Math.sin(a) * rr), '#ffd23f', 3);
-    }
+  demoBtn.onclick = () => {
+    if (totalCount() > 0) return;
+    entries = Array.from({ length: 12 }, (_, i) => ({ name: T.numName(i + 1), count: 1 }));
+    renderRoster(); begin();
   };
+
 })();
