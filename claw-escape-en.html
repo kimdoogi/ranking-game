@@ -164,6 +164,9 @@ window.T = {
   chain: n => `${n} dolls hooked in a chain!`,
   empty: 'Whiff! Slipped right out',
   slip: name => `Nooo… ${name} dropped! Back in danger`,
+  bump: name => `Thud! ${name} is shoved out from underneath`,
+  bumpIn: name => `Shoved into the chute! ${name} is out`,
+  bumpBack: name => `${name} barely hangs on`,
   teeter: 'On the edge!!! In or out…',
   lipIn: name => `🎉 ${name} tips in!`,
   lipBack: name => `Bounced back! ${name} 😱`,
@@ -193,6 +196,7 @@ window.T = {
   loserSub: n => `Left behind out of ${n}`,
   loserStat: (g, s, lb) => (g ? `Grabbed ${g}× and dropped every time 😭` : 'Never even grabbed 😶') + (lb ? ` · bounced off the edge ${lb}×` : ''),
   tagFluke: 'Lucky',
+  tagBump: 'Shoved out',
   tagChain: 'Chain',
   tagGolden: 'Golden',
   tagJackpot: 'Jackpot',
@@ -224,6 +228,6 @@ window.T = {
 };
 </script>
 <script src="claw-escape-fx.js?v=38eb970904"></script>
-<script src="claw-escape.js?v=3e60ec2bfe"></script>
+<script src="claw-escape.js?v=efad256fae"></script>
 </body>
 </html>

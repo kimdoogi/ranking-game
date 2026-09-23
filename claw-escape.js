@@ -41,6 +41,9 @@
     TILT_FIRST: 7, TILT_GAP: 12, TILT_MAX: 2, TILT_WARN: 1.5, TILT_SHAKE: 0.7, TILT_SETTLE: 0.5,
     FLUKE_P: 0.35, FLUKE_IN: 0.55, JACKPOT_T: 1.5, DUCK_T: 1.0, SPREAD_T: 0.9, LASTCOIN: 1.8, LAST3_INTRO: 1.0,
     MISS_CAP: 3, FF: 1.8, LATE_CAP: 12, HARD_CAP: 110,
+    // A miss shoves the doll underneath. Pocket slides are quiet; most hits
+    // rip the support out so the column falls and that doll pops back on top.
+    BUMP_LIP: 0.62, BUMP_IN: 0.5, BUMP_POCKET: 0.28, BUMP_CHUTE: 0.66,
   };
   const T3 = n => 4 + 0.7 * n;           // sim s by which the director wants 3 dolls left
   const DEADLINE = n => 38 + 0.6 * n;    // endgame deadline
@@ -230,22 +233,123 @@
     else tweenTo(e, S.x, S.y, 'fall', then);
   }
   // settle(): unsupported occupants drop into an empty below-slot (simRand picks between two).
-  function settle() {
+  // mode 'fall' is the collapse after a miss: gravity, not a quiet lerp.
+  function settle(mode) {
     let moved = true, guard = 0;
     while (moved && guard++ < 400) {
       moved = false;
       for (let s = 0; s < slots.length; s++) {
         const o = slots[s].occ;
         if (!o || supported(s)) continue;
+        // A doll released this cycle keeps the slot landSlot just chose.
+        if (mode === 'fall' && o.vulnerable === false) continue;
         const em = belowOf[s].filter(b => !slots[b].occ);
         if (!em.length) continue;
         const to = em.length > 1 ? em[Math.floor(simRand() * em.length)] : em[0];
         place(o, to);
         if (o.state === 'fall' && o.tw) slotTween(o, 'fall');
+        else if (mode === 'fall') { o.state = 'fall'; o.armImpact = false; slotTween(o, 'fall', 'pile'); }
         else { o.state = 'pile'; slotTween(o, 'lerp'); }
         moved = true;
       }
     }
+  }
+  function sideIndex(s, dir) {
+    const S = slots[s], c = S.c + (dir < 0 ? -1 : 1);
+    if (c < 0) return -1;
+    for (let i = 0; i < slots.length; i++) if (slots[i].row === S.row && slots[i].c === c) return i;
+    return -1;
+  }
+  // Highest supported empty slot near x. A ripped doll should surface, not burrow.
+  function landHigh(x) {
+    let best = -1, bd = 1e9;
+    for (let s = 0; s < slots.length; s++) {
+      if (slots[s].occ || !supported(s)) continue;
+      const d = Math.abs(slots[s].x - x) - 0.01 * slots[s].row;
+      if (d < bd - 1e-9) { bd = d; best = s; }
+    }
+    return best;
+  }
+  // Slips are not knockable until a later tick has seen them at rest. The same
+  // tick they land must not throw them into the chute.
+  function knockable(o, landed) {
+    return !!o && o !== landed && o.state === 'pile' && !o.tw && o.slot >= 0 && o.vulnerable !== false && o.restAt !== gameT;
+  }
+  function markRest(e) {
+    if (e && e.state === 'pile' && !e.tw && e.slot >= 0) { e.vulnerable = true; e.restAt = gameT; }
+  }
+  function contactsOf(landed) {
+    const out = [], s = landed.slot;
+    if (s < 0) return out;
+    for (const b of belowOf[s]) if (knockable(slots[b].occ, landed)) out.push(slots[b].occ);
+    if (out.length) return out;
+    for (const dir of [-1, 1]) {
+      const n = sideIndex(s, dir);
+      if (n >= 0 && knockable(slots[n].occ, landed)) out.push(slots[n].occ);
+    }
+    return out;
+  }
+  function pushDir(landed, victim, vx) {
+    if (vx <= -1) return -1;
+    if (vx >= 1) return 1;
+    const vs = slots[victim.slot];
+    if (vs.x < landed.x - 1) return -1;
+    if (vs.x > landed.x + 1) return 1;
+    return simRand() < C.BUMP_CHUTE ? -1 : 1;
+  }
+  // Doll exits already committed this cycle. A bump may add one more only while
+  // three dolls would still remain, so LAST3 and the final grab are not skipped.
+  function pendingDollExits() {
+    let n = 0;
+    for (const e of ents) {
+      if (e.kind !== 'doll' || e.state === 'out') continue;
+      if (e.state === 'held' && (e.plan === 'in' || e.plan === 'lipIn')) n++;
+      else if (e.state === 'teeter' && e.teeterIn) n++;
+      else if (e.state === 'fall' && e.tw && e.tw.then === 'chute') n++;
+    }
+    return n;
+  }
+  function sendToLip(e, into) {
+    if (e.slot >= 0) place(e, -1);
+    e.state = 'fall'; e.plan = 'bump'; e.tag = ''; e.armImpact = false; e.chain = 0;
+    e.teeterDur = U(0.4, 0.75); e.teeterIn = !!into; e.teeterT = 0;
+    tweenTo(e, LIP_X, LIP_TOP - R_DOLL, 'hop', 'teeter', 0.36, R_DOLL * 0.9);
+  }
+  function throwDoll(e, s) {
+    place(e, s); e.armImpact = false; e.state = 'fall';
+    if (slots[s].y < e.y - 0.5) { slotTween(e, 'hop', 'pile'); e.tw.dur = 0.38; e.tw.h = R_DOLL * 1.25; }
+    else slotTween(e, 'fall', 'pile');
+  }
+  // Contact impulse on the lattice. The hit doll leaves its slot, everyone it
+  // was holding falls, and the hit doll comes back on top or hangs on the lip.
+  function pileImpact(landed, vx) {
+    if (!landed || landed.state === 'out' || landed.slot < 0) return;
+    const contacts = contactsOf(landed);
+    if (!contacts.length) return;
+    const victim = contacts.length === 1 ? contacts[0] : contacts[Math.floor(simRand() * contacts.length)];
+    const dir = pushDir(landed, victim, vx);
+    const pocket = sideIndex(victim.slot, dir);
+    if (pocket >= 0 && !slots[pocket].occ && supported(pocket) && simRand() < C.BUMP_POCKET) {
+      place(victim, pocket); victim.state = 'pile'; victim.armImpact = false;
+      slotTween(victim, 'hop', 'pile'); victim.tw.dur = 0.28; victim.tw.h = R_DOLL * 0.55;
+      settle('fall');
+      emit('bump', victim, landed);
+      return;
+    }
+    const fromX = slots[victim.slot].x;
+    const onLip = dir < 0 && sideIndex(victim.slot, -1) < 0 && !ents.some(o => o.state === 'teeter');
+    place(victim, -1);
+    settle('fall');
+    if (onLip && simRand() < C.BUMP_LIP) {
+      const into = victim.kind === 'duck' || remCount() - pendingDollExits() - 1 >= 3;
+      sendToLip(victim, into && simRand() < C.BUMP_IN);
+    } else {
+      let s = landHigh(fromX + dir * R_DOLL * 1.7);
+      if (s < 0) s = landHigh(fromX);
+      if (s < 0) sendToLip(victim, false);
+      else throwDoll(victim, s);
+    }
+    emit('bump', victim, landed);
   }
 
   // ---------- Entities ----------
@@ -264,7 +368,7 @@
     return { state: 'idle', x: HOME_X, hubY: HOME_Y, carryY: HOME_Y, liftY: HOME_Y, prong: 0, t: 0,
       target: null, grabbed: [], hoverX: -1, hovered: false, golden: false, jackpot: false, attempt: 0,
       ph: 'rush', sp: 1, err: 0, roulDur: 0, dropY: HOME_Y, lift0: HOME_Y, x0: HOME_X, carryX: HOME_X,
-      relN: 0, saved: 0, empty: false, lip: false, late: false };
+      relN: 0, saved: 0, empty: false, lip: false, late: false, bumped: false };
   }
   function newDir() {
     return { missStreak: 0, finalAttempt: 0, tiltN: 0, nextTilt: C.TILT_FIRST, tiltWarnT0: -1,
@@ -326,7 +430,7 @@
   function busy() {
     for (const e of ents) {
       if (e.state === 'out') continue;
-      if (e.tw || e.state === 'held' || e.state === 'fall' || e.state === 'teeter') return true;
+      if (e.impactWait || e.tw || e.state === 'held' || e.state === 'fall' || e.state === 'teeter') return true;
     }
     return false;
   }
@@ -405,7 +509,7 @@
           ducks.push(d); ents.push(d);
           d.x = slots[b.slot].x; d.y = -10;
           if (slots[b.slot].occ || !supported(b.slot)) b.slot = landSlot(d.x);
-          place(d, b.slot); d.state = 'fall';
+          place(d, b.slot); d.state = 'fall'; d.armImpact = true;
           slotTween(d, 'fall');
           b.duck = d;
           emit('duckSpawn', d);
@@ -463,7 +567,7 @@
     if (!cand.length) { c.t = 0; return; }
     const target = cand[Math.floor(simRand() * cand.length)];
     Object.assign(c, { state: 'roulette', t: 0, target, ph, golden: golden || jackpot, jackpot, late,
-      sp: C.SP[ph] * (late ? 1.3 : 1), err: rem - expected(gameT), grabbed: [], saved: 0, empty: false, lip: false,
+      sp: C.SP[ph] * (late ? 1.3 : 1), err: rem - expected(gameT), grabbed: [], saved: 0, empty: false, bumped: false, lip: false,
       attempt: ph === 'final' ? dir.finalAttempt + 1 : 0, hoverX: -1, hovered: false });
     c.roulDur = c.golden && !jackpot ? Math.max(C.ROUL[ph], 0.6) : C.ROUL[ph];   // golden: 0.6 s sparkle build-up
     if (simRand() < C.HOVERP[ph]) {
@@ -543,9 +647,41 @@
     emit('grab', grabbed);
   }
 
+  // Same-tick slips share the pile from the start of the step. A taken slot is
+  // skipped in favour of another x whose landSlot on that pile is still free,
+  // so the second doll does not suddenly aim at a slot the first one revealed.
+  let slipOcc = null, slipTaken = null;
+  function beginSlipReleases() {
+    slipOcc = slots.map(s => s.occ);
+    slipTaken = new Set();
+  }
+  function landSlotOcc(x, occ) {
+    let best = -1, bd = 1e9;
+    for (let s = 0; s < slots.length; s++) {
+      if (occ[s]) continue;
+      if (slots[s].row && !belowOf[s].every(b => occ[b])) continue;
+      const d = Math.abs(slots[s].x - x) + 0.01 * slots[s].row;
+      if (d < bd - 1e-9) { bd = d; best = s; }
+    }
+    return best;
+  }
+  function claimSlipSlot(relX) {
+    const step = Math.max(1, R_DOLL / 10);
+    for (let dx = 0; dx <= R_DOLL + 30; dx += step) {
+      const xs = dx ? [relX - dx, relX + dx] : [relX];
+      for (const x of xs) {
+        const s = landSlotOcc(x, slipOcc);
+        if (s >= 0 && !slipTaken.has(s)) { slipTaken.add(s); return s; }
+      }
+    }
+    const s = landSlot(relX);
+    if (s >= 0) slipTaken.add(s);
+    return s;
+  }
   function releaseSlip(e) {
-    const s = landSlot(e.x + (simRand() * 2 - 1) * R_DOLL);
+    const s = claimSlipSlot(e.x + (simRand() * 2 - 1) * R_DOLL);
     e.state = 'fall'; e.tag = '';
+    e.armImpact = true; e.vulnerable = false;
     if (s >= 0) { place(e, s); slotTween(e, 'fall', 'pile'); }
     if (e.kind === 'doll') e.slips++;
     emit('slip', e);
@@ -599,8 +735,10 @@
         break;
       }
       case 'lift': {
+        if (c.empty && !c.bumped) { c.bumped = true; pileImpact(c.target, 0); }
         c.hubY = approach(c.hubY, c.liftY, C.V_LIFT * c.sp * dt);
         const f = c.lift0 - c.liftY > 1e-6 ? (c.lift0 - c.hubY) / (c.lift0 - c.liftY) : 1;
+        beginSlipReleases();
         for (const e of c.grabbed) if (e.state === 'held' && e.plan === 'slipLift' && f >= e.planF) { positionHeld(e); releaseSlip(e); }
         if (c.hubY === c.liftY) { c.state = 'carry'; c.t = 0; c.x0 = c.x; }
         break;
@@ -608,6 +746,7 @@
       case 'carry': {
         c.x = approach(c.x, c.carryX, C.V_CARRY * c.sp * dt);
         const f = Math.abs(c.x0 - c.carryX) > 1e-6 ? (c.x0 - c.x) / (c.x0 - c.carryX) : 1;
+        beginSlipReleases();
         for (const e of c.grabbed) if (e.state === 'held' && e.plan === 'slipCarry' && f >= e.planF) { positionHeld(e); releaseSlip(e); }
         if (c.x === c.carryX) { c.state = 'release'; c.t = 0; c.relN = 0; emit('release'); }
         break;
@@ -647,14 +786,18 @@
           if (e.teeterIn) {
             e.state = 'fall';
             if (e.plan === 'fluke') e.tag = 'fluke';
+            else if (e.plan === 'bump') e.tag = 'bump';
             tweenTo(e, HOME_X - 10, SENSOR_Y + 40, 'fall', 'chute');
-            emit('lipIn', e);
+            emit(e.plan === 'bump' ? 'bumpIn' : 'lipIn', e);
           } else {
-            const s = landSlot(PILE_X0);
+            const back = e.plan === 'bump';
+            let s = landSlot(PILE_X0);
+            if (s < 0) s = landHigh(PILE_X0);
             place(e, s); e.state = 'fall'; e.tag = '';
-            slotTween(e, 'hop', 'pile'); e.tw.dur = 0.5;
+            if (!back) e.armImpact = true;
+            if (s >= 0) { slotTween(e, 'hop', 'pile'); e.tw.dur = 0.5; }
             if (e.kind === 'doll' && e.plan === 'lipBack') e.lipBacks++;
-            emit('lipBack', e);
+            emit(back ? 'bumpBack' : 'lipBack', e);
           }
         }
         continue;
@@ -667,11 +810,18 @@
       else if (w.mode === 'hop') { e.x = lerp(w.x0, w.x1, u); e.y = lerp(w.y0, w.y1, u) - w.h * 4 * u * (1 - u); }
       else { const k = u * u; e.x = lerp(w.x0, w.x1, k); e.y = lerp(w.y0, w.y1, k); }
       if (u >= 1) {
+        const vx = w.x1 - w.x0;
         e.x = w.x1; e.y = w.y1; e.tw = null;
         if (w.then === 'pile') {
           const was = e.state;
           e.state = 'pile';
-          if (was === 'fall') { settle(); emit('land', e); }
+          if (was === 'fall') {
+            settle();
+            // Impact waits a tick so the release slot is still the one landSlot chose.
+            if (e.armImpact) { e.armImpact = false; e.impactVx = vx; e.impactWait = 2; }
+            emit('land', e);
+          }
+          markRest(e);
         } else if (w.then === 'teeter') { e.state = 'teeter'; e.teeterT = 0; emit('teeter', e); }
         // 'chute': stays in 'fall' below the sensor; the crossing check picks it up this tick
       }
@@ -735,12 +885,24 @@
     if (state === 'playing') endMatch();
   }
 
+  function flushImpacts() {
+    for (const e of ents) {
+      if (e.impactWait !== 1) continue;
+      e.impactWait = 0;
+      if (e.state === 'out' || e.state === 'held' || e.slot < 0) continue;
+      if (e.tw || e.state !== 'pile') { e.impactWait = 2; continue; }
+      pileImpact(e, e.impactVx || 0);
+    }
+  }
   function update(dt) {
     gameT += dt;
     if (gameT > C.HARD_CAP && !dir.closing) { closingTime(); return; }
+    for (const e of ents) if (e.impactWait === 2) e.impactWait = 1;
     clawStep(dt);
     advanceEntities(dt);
     processCrossings();
+    // After the release slot has been chosen, so a miss can still knock the pile.
+    flushImpacts();
   }
 
   // Pure function of sim state; the harness uses it to estimate real duration.
@@ -932,6 +1094,27 @@
         if (a.kind === 'doll') say(T.slip(dispName(a)));
         sfx('slip', 80, v => beep(900, 0.18, 'sine', 0.1 * v, 300));
         break;
+      case 'bump': {
+        const who = a;
+        fx.comic(who.x, who.y - r * 0.4, T.fThud, '#ffb020', 28);
+        if (!reduceMotion) fx.dust(who.x, who.y + r * 0.7, 8);
+        addTrauma(0.4); vibT = 0.4;
+        L(who).sq = 0.42; L(who).jolt = 0.55; L(who).sadT = 1.5;
+        if (b && b !== who) { L(b).sq = 0.28; L(b).jolt = 0.35; }
+        if (who.kind === 'doll') say(T.bump(dispName(who)));
+        sfx('bump', 60, v => { noise(0.14, 0.18 * v); beep(80, 0.18, 'triangle', 0.2 * v, 40); });
+        break;
+      }
+      case 'bumpIn':
+        fx.float(a.x, a.y - r * 1.3, T.fIn, '#ffb020', 26, true);
+        if (a.kind === 'doll') say(T.bumpIn(dispName(a)));
+        addTrauma(0.25);
+        break;
+      case 'bumpBack':
+        L(a).sadT = 1.5; L(a).jolt = 0.4;
+        if (a.kind === 'doll') say(T.bumpBack(dispName(a)));
+        sfx('bumpBack', 80, v => beep(240, 0.16, 'square', 0.08 * v, 180));
+        break;
       case 'land':
         if (a.plan === 'slipLift' || a.plan === 'slipCarry' || a.plan === 'lipBack' || a.plan === 'fluke') {
           fx.comic(a.x, a.y - r * 0.6, T.fThud, '#ffe066', 26);
@@ -1004,7 +1187,7 @@
       [523, 659, 784].forEach((f, i) => beep(f * pitch * 2, 0.1, 'triangle', 0.06 * v, 0, 0.14 + i * 0.07));
     });
   }
-  const tagLabel = t => ({ fluke: T.tagFluke, chain: T.tagChain, golden: T.tagGolden, jackpot: T.tagJackpot, lip: T.tagLip, closing: T.tagClosing }[t] || '');
+  const tagLabel = t => ({ fluke: T.tagFluke, bump: T.tagBump, chain: T.tagChain, golden: T.tagGolden, jackpot: T.tagJackpot, lip: T.tagLip, closing: T.tagClosing }[t] || '');
 
   function phaseMarquee() {
     const ph = phaseOf();
@@ -1033,6 +1216,7 @@
     const ft = realDt * timeScale;
     for (const v of look.values()) {
       if (v.sadT > 0) v.sadT -= ft;
+      if (v.jolt > 0) v.jolt = Math.max(0, v.jolt - ft);
       if (v.sq > 0.001) v.sq *= Math.pow(0.82, realDt * 60); else v.sq = 0;
     }
     if (banner) { banner.t += realDt; if (banner.t > banner.dur) banner = null; }
@@ -1336,6 +1520,21 @@
     c.restore();
   }
 
+  // Weight on the dolls directly under a body that is still in the air.
+  function crushOf(d) {
+    if (d.state !== 'pile') return 0;
+    let k = 0;
+    for (const e of ents) {
+      if (e === d || (e.state !== 'fall' && e.state !== 'held')) continue;
+      const dx = e.x - d.x;
+      if (dx > R_DOLL * 1.2 || dx < -R_DOLL * 1.2) continue;
+      const gap = d.y - e.y;
+      if (gap < R_DOLL * 0.15 || gap > R_DOLL * 2.6) continue;
+      const t = 1 - gap / (R_DOLL * 2.6);
+      if (t > k) k = t;
+    }
+    return k * (reduceMotion ? 0.08 : 0.24);
+  }
   function dollOpts(d, z, rem, ph) {
     const v = L(d), r = R_DOLL;
     let face, arms = 0, sweat = false, rot = 0, flail = 0;
@@ -1358,8 +1557,11 @@
       if (Math.hypot(d.x - S.x, d.y - S.y) < 2.2 * r) sweat = true;
     }
     if (dir.block && dir.block.kind === 'tiltWarn' && !reduceMotion) rot += Math.sin(fxClock * 30 + (typeof d.id === 'number' ? d.id : 3)) * 0.06;
+    const crush = crushOf(d);
+    if (crush > 0 || v.jolt > 0) sweat = true;
+    if (v.jolt > 0 && !reduceMotion) rot += Math.sin(fxClock * 26 + (typeof d.id === 'number' ? d.id : 1)) * 0.22 * Math.min(1, v.jolt / 0.4);
     const hx = claw.x - d.x, hy = claw.hubY - d.y, hl = Math.hypot(hx, hy) || 1;
-    const o = { hue: d.hue, species: d.species, face, arms, sweat, rot, flail, sq: v.sq, look: { x: hx / hl, y: hy / hl } };
+    const o = { hue: d.hue, species: d.species, face, arms, sweat, rot, flail, sq: Math.min(0.45, (v.sq || 0) + crush), look: { x: hx / hl, y: hy / hl } };
     return o;
   }
 

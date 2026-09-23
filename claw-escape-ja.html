@@ -164,6 +164,9 @@ window.T = {
   chain: n => `芋づる式に ${n}体つれてきた！`,
   empty: 'スカッ！するりと抜けた',
   slip: name => `ああ… ${name} 落ちた！また危ない`,
+  bump: name => `ドスン！${name} が下から押し出された`,
+  bumpIn: name => `押し出されて脱出！${name}`,
+  bumpBack: name => `${name}、かろうじて踏ん張った`,
   teeter: '引っかかった！！！入るか入らないか…',
   lipIn: name => `🎉 ${name} ふちから転がってIN！`,
   lipBack: name => `はね返された！${name} 😱`,
@@ -193,6 +196,7 @@ window.T = {
   loserSub: n => `${n}人の中で最後までつかまれなかった人形`,
   loserStat: (g, s, lb) => (g ? `${g}回つかまれて全部落ちた 😭` : '一度もつかまれなかった 😶') + (lb ? ` · ふちで跳ね返り ${lb}回` : ''),
   tagFluke: '漁夫の利',
+  tagBump: '押し出され',
   tagChain: '芋づる',
   tagGolden: '黄金クレーン',
   tagJackpot: 'ジャックポット',
@@ -224,6 +228,6 @@ window.T = {
 };
 </script>
 <script src="claw-escape-fx.js?v=38eb970904"></script>
-<script src="claw-escape.js?v=3e60ec2bfe"></script>
+<script src="claw-escape.js?v=efad256fae"></script>
 </body>
 </html>

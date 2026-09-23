@@ -164,6 +164,9 @@ window.T = {
   chain: n => `一串带出 ${n} 个！`,
   empty: '夹空了！一下子溜走了',
   slip: name => `啊啊…… ${name} 掉下来了！又危险了`,
+  bump: name => `咚！${name} 从下面被挤开了`,
+  bumpIn: name => `被挤进出口了！${name} 逃脱`,
+  bumpBack: name => `${name} 勉强挂住了`,
   teeter: '卡在边上了！！！进还是不进……',
   lipIn: name => `🎉 ${name} 从边上滚进去了！`,
   lipBack: name => `弹回来了！${name} 😱`,
@@ -193,6 +196,7 @@ window.T = {
   loserSub: n => `${n} 人中一直没被夹走的娃娃`,
   loserStat: (g, s, lb) => (g ? `被夹住 ${g} 次，每次都掉了下来 😭` : '一次都没被夹到 😶') + (lb ? ` · 卡边弹回 ${lb} 次` : ''),
   tagFluke: '渔翁得利',
+  tagBump: '被挤出',
   tagChain: '一串带出',
   tagGolden: '黄金夹子',
   tagJackpot: '大奖',
@@ -224,6 +228,6 @@ window.T = {
 };
 </script>
 <script src="claw-escape-fx.js?v=38eb970904"></script>
-<script src="claw-escape.js?v=3e60ec2bfe"></script>
+<script src="claw-escape.js?v=efad256fae"></script>
 </body>
 </html>

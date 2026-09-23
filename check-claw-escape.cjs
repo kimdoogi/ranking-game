@@ -812,8 +812,12 @@ function checkPlans() {
       }
       if (cycle && prev === 'settle' && cs !== 'settle') {
         if (cycle.plan === 'empty') {
-          assert.equal(slotMap(g), cycle.preGrab, `${label}: after an 'empty' grab the pile must be exactly as before GRAB`);
-          assert.deepEqual(Array.from(g.dolls, d => d.grabs), cycle.grabs, `${label}: an 'empty' grab must not count as a grab for anyone`);
+          const t = cycle.target;
+          // The whiff itself picks nobody up. The pile underneath may still collapse once the claw lifts.
+          assert.equal(t.state, 'pile', `${label}: after an empty grab the target is in the pile, not '${t.state}'`);
+          assert.ok(slotOf(g, t), `${label}: after an empty grab the target still has a slot`);
+          assert.notEqual(t.state, 'out', `${label}: an empty grab must not carry the target out`);
+          assert.deepEqual(Array.from(g.dolls, d => d.grabs), cycle.grabs, `${label}: an empty grab must not count as a grab for anyone`);
           stats.empty++; if (cycle.hooks > 0) stats.emptyHooks++;
         }
         if (cycle.target.kind === 'duck' && cycle.plan === 'in') {

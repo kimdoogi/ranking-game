@@ -164,6 +164,9 @@ window.T = {
   chain: n => `줄줄이 ${n}명 딸려 나온다!`,
   empty: '헛손질! 쏙 빠져나갔다',
   slip: name => `아아… ${name} 떨어졌다! 다시 위험`,
+  bump: name => `쿵! ${name} 밑에서 밀려난다`,
+  bumpIn: name => `밀려 떨어졌다! ${name} 탈출`,
+  bumpBack: name => `${name} 간신히 버텼다`,
   teeter: '걸쳤다!!! 들어가냐 마냐…',
   lipIn: name => `🎉 ${name} 걸쳐서 IN!`,
   lipBack: name => `튕겨 나왔다! ${name} 😱`,
@@ -193,6 +196,7 @@ window.T = {
   loserSub: n => `${n}명 중 끝까지 안 뽑힌 인형`,
   loserStat: (g, s, lb) => (g ? `${g}번 잡혔다가 다 떨어짐 😭` : '한 번도 안 잡혔어요 😶') + (lb ? ` · 걸쳤다 튕겨 나옴 ${lb}회` : ''),
   tagFluke: '어부지리',
+  tagBump: '밀려서 탈출',
   tagChain: '줄줄이',
   tagGolden: '황금 집게',
   tagJackpot: '잭팟',
@@ -224,6 +228,6 @@ window.T = {
 };
 </script>
 <script src="claw-escape-fx.js?v=38eb970904"></script>
-<script src="claw-escape.js?v=3e60ec2bfe"></script>
+<script src="claw-escape.js?v=efad256fae"></script>
 </body>
 </html>
