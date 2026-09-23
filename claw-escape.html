@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-TNX16BV3PS"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-TNX16BV3PS');
+</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>인형뽑기 대탈출 🧸 커피내기 꼴찌 뽑기 — 사다리게임·룰렛 대신 | 무료 브라우저 미니게임</title>
+
+<!-- SEO -->
+<meta name="description" content="이름을 넣으면 집게가 한 명씩 뽑아 탈출시키고, 끝까지 안 뽑힌 마지막 인형이 커피를 쏘는 꼴찌 뽑기 미니게임. 커피내기·벌칙 정하기에 사다리게임이나 룰렛 대신 쓰세요. 설치 없이 무료." />
+<meta name="keywords" content="커피내기, 꼴찌 뽑기, 벌칙 정하기, 인형뽑기, 복불복, 사다리게임, 룰렛, 랜덤 뽑기, 이름 뽑기, 미니게임, 무료게임, 브라우저게임" />
+<meta name="author" content="kimdoogi" />
+<meta name="robots" content="index, follow" />
+<meta name="theme-color" content="#0a0a16" />
+<link rel="canonical" href="https://kimdoogi.github.io/ranking-game/claw-escape.html" />
+<link rel="alternate" hreflang="ko" href="https://kimdoogi.github.io/ranking-game/claw-escape.html" />
+<link rel="alternate" hreflang="en" href="https://kimdoogi.github.io/ranking-game/claw-escape-en.html" />
+<link rel="alternate" hreflang="zh" href="https://kimdoogi.github.io/ranking-game/claw-escape-zh.html" />
+<link rel="alternate" hreflang="ja" href="https://kimdoogi.github.io/ranking-game/claw-escape-ja.html" />
+<link rel="alternate" hreflang="x-default" href="https://kimdoogi.github.io/ranking-game/claw-escape.html" />
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🧸</text></svg>' />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="미니게임 아케이드" />
+<meta property="og:locale" content="ko_KR" />
+<meta property="og:locale:alternate" content="en_US" />
+<meta property="og:locale:alternate" content="zh_CN" />
+<meta property="og:locale:alternate" content="ja_JP" />
+<meta property="og:title" content="인형뽑기 대탈출 🧸 커피내기 꼴찌 뽑기" />
+<meta property="og:description" content="집게에 뽑히면 탈출! 끝까지 남은 인형이 오늘 커피 당번 ☕ 무료로 바로 플레이." />
+<meta property="og:url" content="https://kimdoogi.github.io/ranking-game/claw-escape.html" />
+<meta property="og:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="인형뽑기 대탈출 🧸 커피내기 꼴찌 뽑기" />
+<meta name="twitter:description" content="집게에 뽑히면 탈출! 끝까지 남은 인형이 오늘 커피 당번 ☕ 무료로 바로 플레이." />
+<meta name="twitter:image" content="https://kimdoogi.github.io/ranking-game/assets/og-image.png" />
+
+<!-- Structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "인형뽑기 대탈출",
+  "alternateName": "커피내기 꼴찌 뽑기 미니게임",
+  "url": "https://kimdoogi.github.io/ranking-game/claw-escape.html",
+  "image": "https://kimdoogi.github.io/ranking-game/assets/og-image.png",
+  "description": "이름을 넣으면 끝까지 안 뽑힌 한 명이 정해지는 인형뽑기 꼴찌 뽑기 게임.",
+  "keywords": "커피내기, 꼴찌 뽑기, 벌칙 정하기, 복불복, 사다리게임, 룰렛",
+  "inLanguage": "ko-KR",
+  "genre": "Casual",
+  "gamePlatform": "Web browser",
+  "applicationCategory": "Game",
+  "operatingSystem": "Any (web browser)",
+  "author": { "@type": "Person", "name": "kimdoogi" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
+<link rel="stylesheet" href="claw-escape.css?v=e462afc108" />
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="utilBar">
+  <a href="index.html" title="게임 목록" aria-label="게임 목록으로 돌아가기">🏠</a>
+  <button id="muteBtn" type="button" aria-pressed="false" aria-label="소리 끄기" title="소리 끄기">🔊</button>
+</div>
+
+<div id="hud" hidden>
+  <div class="pill dollPill">🧸 남은 인형 <span class="big" id="aliveCount">0</span><span id="coffeeOdds" class="odds"></span></div>
+  <div class="pill stagePill"><span id="stageStatus"></span><span id="cupTab" class="cupTab"></span></div>
+</div>
+<div id="ffChip" hidden>⏩ ×1.8</div>
+<section id="matchFeed" hidden aria-label="LIVE · 탈출 중계">
+  <div class="feedTitle">LIVE · 탈출 중계</div>
+  <strong id="matchHeadline"></strong>
+  <div id="dangerChips" hidden aria-label="☕ 커피 후보"></div>
+  <div id="escapeFeed" role="log" aria-live="polite" aria-relevant="additions"></div>
+</section>
+
+<div id="countdown"></div>
+
+<div class="overlay" id="startScreen">
+  <div class="title">인형뽑기<br>대탈출</div>
+  <div class="subtitle">집게에 뽑히면 탈출! 마지막까지 남은 인형이 커피 쏜다 ☕
+    <span class="tagline">사다리게임·룰렛 대신 쓰는 꼴찌 뽑기 — 커피내기·벌칙 정하기</span>
+  </div>
+<p class="arenaIntro">☕ 이름만 넣고 지켜보세요.<br>자동 집게 · 예고된 TILT · 끝까지 안 뽑히면 커피 당번!</p>
+  <div class="control">
+    <label>참가자 추가 <span class="hint"><b>이름 * 4</b> 처럼 입력하고 추가하기 · 중복 OK</span></label>
+    <div class="addRow">
+      <input id="nameInput" type="text" placeholder="예: 김두기 * 4" autocomplete="off" />
+      <button id="addBtn" class="addBtn">추가하기</button>
+    </div>
+    <div class="rosterWrap">
+      <div class="rosterList" id="rosterList"></div>
+      <div class="rosterFoot">
+        <span class="lobbyCount"><span id="countVal">0</span>명</span>
+        <button id="clearBtn" class="clearBtn">전체 지우기</button>
+      </div>
+    </div>
+    <div class="lobbyHint" id="lobbyHint"></div>
+  </div>
+  <button class="playBtn" id="startBtn">▶ 시작!</button>
+  <button class="demoBtn" id="demoBtn" type="button">⚡ 이름 없이 12명으로 바로 체험</button>
+</div>
+
+<div class="overlay hidden loserWin" id="winScreen">
+  <div class="winnerLayout">
+    <div class="winnerHero loserHero">
+      <div class="winnerEyebrow">☕ 오늘의 커피 당번</div>
+      <canvas id="loserPortrait" role="img"></canvas>
+      <div id="winName">-</div>
+      <div id="loserSub"></div>
+      <div id="loserStat"></div>
+    </div>
+    <section class="winnerBoard receipt" aria-labelledby="rankTitle">
+      <h2 id="rankTitle">탈출 순서 · 영수증</h2>
+      <ol class="rankList" id="rankList"></ol>
+      <div class="receiptTotal" id="receiptTotal"></div>
+      <div class="winnerActions">
+        <button class="playBtn win" id="againBtn">🔄 다시하기</button>
+        <button class="shareBtn" id="shareBtn" type="button">📸 결과 카드 공유</button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+window.T = {
+  shareUrl: 'https://kimdoogi.github.io/ranking-game/claw-escape.html',
+  gameName: '인형뽑기 대탈출',
+  mute: '소리 끄기',
+  unmute: '소리 켜기',
+  place: n => `${n}위`,
+  watchHint: '마지막까지 안 뽑힐 인형은?',
+  stageInsert: '🪙 INSERT COIN',
+  stageRush: '🚀 러시 타임',
+  stageMain: '🎯 본게임',
+  stageLast3: '💓 커피 후보 3명',
+  stageFinal: '🔥 결승',
+  stageReveal: '☕ 커피 당번 발표',
+  secs: s => `${s}초`,
+  odds: pct => `커피 확률 ${pct}%`,
+  cups: n => `🧾 ${n}잔`,
+  intro: '🪙 동전 투입! 집게 출동',
+  aim: name => `🎯 집게가 노린다… ${name}?`,
+  hover: '어? 방향을 튼다!',
+  grab: name => `잡았다!! ${name} 탈출하나?`,
+  chain: n => `줄줄이 ${n}명 딸려 나온다!`,
+  empty: '헛손질! 쏙 빠져나갔다',
+  slip: name => `아아… ${name} 떨어졌다! 다시 위험`,
+  teeter: '걸쳤다!!! 들어가냐 마냐…',
+  lipIn: name => `🎉 ${name} 걸쳐서 IN!`,
+  lipBack: name => `튕겨 나왔다! ${name} 😱`,
+  escaped: name => `🎉 ${name} 탈출!`,
+  fluke: name => `어부지리! ${name} 얼떨결에 탈출`,
+  duckDrop: '🦆 꽝 오리 투입!',
+  duck: '🦆 꽝! 오리를 뽑았다 ㅋㅋ',
+  tilt: '⚠️ TILT! 기계가 흔들려요',
+  tiltGo: '와르르! 자리가 섞였다',
+  spread: '탈탈~ 다 같이 바닥으로',
+  jackpot: '🎰 잭팟 집게! 줄줄이 구출',
+  blackout: '💡 정전…?!',
+  last3: names => `☕ 커피 후보: ${names}`,
+  final: (a, b) => `결승! ${a} vs ${b} — 먼저 뽑히는 쪽이 산다`,
+  lastCoin: '🪙 LAST COIN',
+  golden: '✨ 황금 집게 등장! 100% 잡는다',
+  shutter: '철컥! 출구 봉쇄',
+  closing: '⏱️ 영업 종료! 남은 인형 정리',
+  loserBanner: name => `☕ 오늘 커피는 ${name}!`,
+  loserSign: '☕ 제가 살게요…',
+  fSaved: '살았다!',
+  fIn: 'IN!',
+  fThud: '쿵!',
+  fWhiff: '쏙!',
+  fPick: '나 뽑아!',
+  taunts: ['아아 벤티로~', '샷 추가요 ㅋㅋ', '잘 마실게~', 'ㅋㅋㅋㅋ', '지갑 챙겨~'],
+  loserSub: n => `${n}명 중 끝까지 안 뽑힌 인형`,
+  loserStat: (g, s, lb) => (g ? `${g}번 잡혔다가 다 떨어짐 😭` : '한 번도 안 잡혔어요 😶') + (lb ? ` · 걸쳤다 튕겨 나옴 ${lb}회` : ''),
+  tagFluke: '어부지리',
+  tagChain: '줄줄이',
+  tagGolden: '황금 집게',
+  tagJackpot: '잭팟',
+  tagLip: '걸쳐서 IN',
+  tagClosing: '영업 종료',
+  loserRow: '☕ 결제',
+  receiptTotal: n => `합계 · 아메리카노 × ${n}잔`,
+  payer: name => `결제자: ${name}`,
+  stamp: '꼴찌 확정',
+  portraitAria: name => `${name} 인형이 커피 쟁반을 들고 울고 있어요`,
+  cardTitle: '🧸 인형뽑기 대탈출',
+  cardPlayers: n => `${n}명 참가`,
+  cardCoupon: 'COFFEE COUPON',
+  cardCoffee: '☕ 오늘 커피는',
+  cardPays: n => `아메리카노 × ${n}잔 결제`,
+  cardFirst: names => `🥇 1등 탈출 ${names}`,
+  cardCta: '설치 없이 바로 플레이 ▶',
+  shareCaption: (loser, n, first) => `☕ 오늘 커피는 ${loser}! (${n}명 중 꼴찌) · 🥇 1등 탈출 ${first}`,
+  cardBuilding: '결과 카드를 만드는 중이에요…',
+  cardFailed: '결과 카드를 만들지 못했어요 😢',
+  cardCopied: '결과 카드를 복사했어요! 채팅방에 붙여넣기 하세요 📋',
+  cardSaved: '결과 카드를 저장했어요 💾',
+  shareFailed: '공유에 실패했어요 😢',
+  rosterEmpty: '아직 참가자가 없어요',
+  hintEmpty: '이름을 입력하고 추가하기를 누르세요',
+  hintReady: n => `${n}명 참가 — 시작할 수 있어요!`,
+  hintNeedMore: n => `${n}명 이상부터 시작할 수 있어요`,
+  numName: n => n + '번'
+};
+</script>
+<script src="claw-escape-fx.js?v=38eb970904"></script>
+<script src="claw-escape.js?v=3e60ec2bfe"></script>
+</body>
+</html>

@@ -6,6 +6,7 @@ Game logic and styles live in the shared <slug>.js / <slug>.css and are untouche
 
     python3 build-pages.py
 """
+import sys
 from string import Template
 from hashlib import sha256
 from pathlib import Path
@@ -15,13 +16,26 @@ LANGS = ['ko', 'en', 'zh', 'ja']
 HTML_LANG = {'ko': 'ko', 'en': 'en', 'zh': 'zh-Hans', 'ja': 'ja'}
 OG_LOCALE = {'ko': 'ko_KR', 'en': 'en_US', 'zh': 'zh_CN', 'ja': 'ja_JP'}
 SCHEMA_LANG = {'ko': 'ko-KR', 'en': 'en', 'zh': 'zh-Hans', 'ja': 'ja'}
-GAMES = ['monster-chase', 'obstacle-run', 'push-royale']
-EMOJI = {'': '🎮', 'monster-chase': '👾', 'obstacle-run': '🏁', 'push-royale': '🏆'}
+GAMES = ['monster-chase', 'obstacle-run', 'push-royale', 'claw-escape']
+EMOJI = {'': '🎮', 'monster-chase': '👾', 'obstacle-run': '🏁', 'push-royale': '🏆', 'claw-escape': '🧸'}
+
+
+MISSING_ASSETS = set()
 
 
 def game_asset(filename):
     # Keep each game and its localized markup on the same asset version.
-    digest = sha256(Path(__file__).with_name(filename).read_bytes()).hexdigest()[:10]
+    # A missing asset (a game still being written) hashes as empty bytes, so the
+    # pages can be generated early; re-run the builder once the file exists.
+    path = Path(__file__).with_name(filename)
+    if path.exists():
+        data = path.read_bytes()
+    else:
+        if filename not in MISSING_ASSETS:
+            print(f'warning: {filename} not found, versioning it as an empty file', file=sys.stderr)
+        MISSING_ASSETS.add(filename)
+        data = b''
+    digest = sha256(data).hexdigest()[:10]
     return f'{filename}?v={digest}'
 
 
@@ -92,35 +106,35 @@ ROSTER = {
 META = {
     '': {
         'ko': dict(
-            title='미니게임 아케이드 🎮 | 브라우저 무료 미니게임 3종',
-            desc='브라우저에서 바로 즐기는 무료 미니게임 아케이드. 먹보 괴물 대탈주, 장애물 대탈주 300, 밀어내기 배틀 로얄 등 미니게임 3종을 설치 없이 플레이하세요.',
+            title='미니게임 아케이드 🎮 | 브라우저 무료 미니게임 4종',
+            desc='브라우저에서 바로 즐기는 무료 미니게임 아케이드. 먹보 괴물 대탈주, 장애물 대탈주 300, 밀어내기 배틀 로얄, 인형뽑기 대탈출 등 미니게임 4종을 설치 없이 플레이하세요.',
             keywords='미니게임, 무료게임, 브라우저게임, HTML5 게임, 캐주얼 게임, 온라인 게임, 웹게임, 랜덤 뽑기, 사다리게임, 룰렛',
             ogTitle='미니게임 아케이드 🎮',
-            ogDesc='브라우저에서 바로 즐기는 무료 미니게임 3종. 설치 없이 지금 플레이!',
+            ogDesc='브라우저에서 바로 즐기는 무료 미니게임 4종. 설치 없이 지금 플레이!',
             schemaDesc='브라우저에서 바로 즐기는 무료 미니게임 아케이드.',
             h1='미니게임 아케이드 🎮', sub='플레이할 게임을 골라보세요'),
         'en': dict(
-            title='Minigame Arcade 🎮 | 3 Free Browser Minigames',
-            desc='A free browser minigame arcade. Monster Munch Escape, Obstacle Run 300 and Push Royale — three minigames that run instantly, no install.',
+            title='Minigame Arcade 🎮 | 4 Free Browser Minigames',
+            desc='A free browser minigame arcade. Monster Munch Escape, Obstacle Run 300, Push Royale and Claw Machine Escape — four minigames that run instantly, no install.',
             keywords='minigame, free game, browser game, HTML5 game, casual game, online game, web game, random name picker, ladder game, roulette',
             ogTitle='Minigame Arcade 🎮',
-            ogDesc='Three free minigames that run right in your browser. No install, just play!',
+            ogDesc='Four free minigames that run right in your browser. No install, just play!',
             schemaDesc='A free browser minigame arcade that runs without any install.',
             h1='Minigame Arcade 🎮', sub='Pick a game to play'),
         'zh': dict(
-            title='小游戏街机厅 🎮 | 3 款免费网页小游戏',
-            desc='浏览器里直接玩的免费小游戏合集。大胃怪物大逃亡、障碍赛跑 300、推挤大逃杀，三款小游戏免安装即玩。',
+            title='小游戏街机厅 🎮 | 4 款免费网页小游戏',
+            desc='浏览器里直接玩的免费小游戏合集。大胃怪物大逃亡、障碍赛跑 300、推挤大逃杀、抓娃娃大逃脱，四款小游戏免安装即玩。',
             keywords='小游戏, 免费游戏, 网页游戏, HTML5 游戏, 休闲游戏, 在线游戏, 随机点名, 阶梯抽签, 轮盘',
             ogTitle='小游戏街机厅 🎮',
-            ogDesc='浏览器里直接玩的三款免费小游戏。免安装，马上开玩！',
+            ogDesc='浏览器里直接玩的四款免费小游戏。免安装，马上开玩！',
             schemaDesc='浏览器里直接玩的免费小游戏合集，免安装。',
             h1='小游戏街机厅 🎮', sub='选一款游戏开始玩'),
         'ja': dict(
-            title='ミニゲームアーケード 🎮 | 無料ブラウザミニゲーム3本',
-            desc='ブラウザですぐ遊べる無料ミニゲーム集。大食いモンスターから大脱走、障害物レース300、プッシュバトルロイヤルの3本をインストール不要でプレイ。',
+            title='ミニゲームアーケード 🎮 | 無料ブラウザミニゲーム4本',
+            desc='ブラウザですぐ遊べる無料ミニゲーム集。大食いモンスターから大脱走、障害物レース300、プッシュバトルロイヤル、クレーンゲーム大脱出の4本をインストール不要でプレイ。',
             keywords='ミニゲーム, 無料ゲーム, ブラウザゲーム, HTML5ゲーム, カジュアルゲーム, オンラインゲーム, 名前 抽選, あみだくじ, ルーレット',
             ogTitle='ミニゲームアーケード 🎮',
-            ogDesc='ブラウザですぐ遊べる無料ミニゲーム3本。インストール不要、今すぐプレイ！',
+            ogDesc='ブラウザですぐ遊べる無料ミニゲーム4本。インストール不要、今すぐプレイ！',
             schemaDesc='ブラウザですぐ遊べる無料ミニゲーム集。インストール不要。',
             h1='ミニゲームアーケード 🎮', sub='遊ぶゲームを選んでください'),
     },
@@ -326,14 +340,92 @@ META = {
             playHint='☕ 名前を入れて、最後の1人を見届けよう。<br>自動バトル · 爆発予告 · 最後まで目が離せない！',
             demo='⚡ 名前なしで12人バトルを体験'),
     },
+    'claw-escape': {
+        'ko': dict(
+            name='인형뽑기 대탈출',
+            title='인형뽑기 대탈출 🧸 커피내기 꼴찌 뽑기 — 사다리게임·룰렛 대신 | 무료 브라우저 미니게임',
+            desc='이름을 넣으면 집게가 한 명씩 뽑아 탈출시키고, 끝까지 안 뽑힌 마지막 인형이 커피를 쏘는 꼴찌 뽑기 미니게임. 커피내기·벌칙 정하기에 사다리게임이나 룰렛 대신 쓰세요. 설치 없이 무료.',
+            keywords='커피내기, 꼴찌 뽑기, 벌칙 정하기, 인형뽑기, 복불복, 사다리게임, 룰렛, 랜덤 뽑기, 이름 뽑기, 미니게임, 무료게임, 브라우저게임',
+            ogTitle='인형뽑기 대탈출 🧸 커피내기 꼴찌 뽑기',
+            ogDesc='집게에 뽑히면 탈출! 끝까지 남은 인형이 오늘 커피 당번 ☕ 무료로 바로 플레이.',
+            schemaAlt='커피내기 꼴찌 뽑기 미니게임',
+            schemaDesc='이름을 넣으면 끝까지 안 뽑힌 한 명이 정해지는 인형뽑기 꼴찌 뽑기 게임.',
+            schemaKeywords='커피내기, 꼴찌 뽑기, 벌칙 정하기, 복불복, 사다리게임, 룰렛',
+            titleHtml='인형뽑기<br>대탈출',
+            subtitle='집게에 뽑히면 탈출! 마지막까지 남은 인형이 커피 쏜다 ☕',
+            tagline='사다리게임·룰렛 대신 쓰는 꼴찌 뽑기 — 커피내기·벌칙 정하기',
+            hud='🧸 남은 인형', share='📸 결과 카드 공유',
+            feedTitle='LIVE · 탈출 중계', dangerTitle='☕ 커피 후보',
+            playHint='☕ 이름만 넣고 지켜보세요.<br>자동 집게 · 예고된 TILT · 끝까지 안 뽑히면 커피 당번!',
+            demo='⚡ 이름 없이 12명으로 바로 체험',
+            loserEyebrow='☕ 오늘의 커피 당번', rankTitle='탈출 순서 · 영수증'),
+        'en': dict(
+            name='Claw Machine Escape',
+            title='Claw Machine Escape 🧸 Who Buys Coffee? Last-Place Picker — Ladder Game & Roulette Alternative | Free Browser Game',
+            desc='Drop in names and the claw grabs the dolls one by one to set them free. The last doll nobody picks buys the coffee. A last-place picker for coffee bets and penalties — use it instead of a ladder game or roulette wheel. Free, no install.',
+            keywords='who buys coffee, coffee bet, last place picker, penalty picker, claw machine, random name picker, ladder game, roulette, wheel of names, minigame, free game, browser game',
+            ogTitle='Claw Machine Escape 🧸 Who Buys Coffee?',
+            ogDesc='Get grabbed by the claw to escape! The last doll left is on coffee duty ☕ Play free right now.',
+            schemaAlt='Coffee bet last-place picker minigame',
+            schemaDesc='A claw machine last-place picker: drop in names and the one doll nobody grabs buys the coffee.',
+            schemaKeywords='who buys coffee, coffee bet, last place picker, penalty picker, ladder game, roulette',
+            titleHtml='Claw Machine<br>Escape',
+            subtitle='Get grabbed to escape! The last doll left buys the coffee ☕',
+            tagline='A last-place picker instead of a ladder game or roulette wheel — coffee bets and penalties',
+            hud='🧸 Left', share='📸 Share result card',
+            feedTitle='LIVE · Escape feed', dangerTitle='☕ Coffee candidates',
+            playHint='☕ Add names and just watch.<br>Auto claw · Telegraphed TILT · Last doll left buys coffee!',
+            demo='⚡ Quick play with 12 dolls',
+            loserEyebrow="☕ TODAY'S COFFEE DUTY", rankTitle='Escape order · Receipt'),
+        'zh': dict(
+            name='抓娃娃大逃脱',
+            title='抓娃娃大逃脱 🧸 请喝咖啡倒数第一抽签 — 替代阶梯抽签和轮盘 | 免费网页小游戏',
+            desc='输入名字，娃娃机的夹子会把娃娃一个个夹出去逃脱，最后没被夹走的娃娃请大家喝咖啡。打赌请喝咖啡、决定惩罚时，可以代替阶梯抽签或轮盘。免安装，免费玩。',
+            keywords='请喝咖啡, 倒数第一, 惩罚决定, 抓娃娃, 娃娃机, 阶梯抽签, 轮盘, 随机点名, 抽签工具, 小游戏, 免费游戏, 网页游戏',
+            ogTitle='抓娃娃大逃脱 🧸 谁请喝咖啡？',
+            ogDesc='被夹走就能逃脱！最后剩下的娃娃今天请喝咖啡 ☕ 马上免费开玩。',
+            schemaAlt='请喝咖啡倒数第一抽签小游戏',
+            schemaDesc='输入名字，最后没被夹走的那个人请喝咖啡的抓娃娃倒数第一抽签游戏。',
+            schemaKeywords='请喝咖啡, 倒数第一, 惩罚决定, 抓娃娃, 阶梯抽签, 轮盘',
+            titleHtml='抓娃娃<br>大逃脱',
+            subtitle='被夹走就能逃脱！最后剩下的娃娃请喝咖啡 ☕',
+            tagline='代替阶梯抽签和轮盘的倒数第一抽签 — 打赌请咖啡、定惩罚',
+            hud='🧸 剩余娃娃', share='📸 分享结果卡',
+            feedTitle='LIVE · 逃脱直播', dangerTitle='☕ 咖啡候选',
+            playHint='☕ 输入名字，然后看着就好。<br>自动夹子 · TILT 预警 · 最后没被夹走的请喝咖啡！',
+            demo='⚡ 12个娃娃快速试玩，无需输入名字',
+            loserEyebrow='☕ 今日咖啡买单人', rankTitle='逃脱顺序 · 小票'),
+        'ja': dict(
+            name='クレーンゲーム大脱出',
+            title='クレーンゲーム大脱出 🧸 コーヒーおごりのビリ決め — あみだくじ・ルーレット代わり | 無料ブラウザゲーム',
+            desc='名前を入れるとクレーンが人形を1体ずつつかんで脱出させ、最後まで残った人形がコーヒーをおごるビリ決めミニゲーム。コーヒーおごりや罰ゲーム決めに、あみだくじやルーレットの代わりにどうぞ。インストール不要、無料。',
+            keywords='コーヒーおごり, ビリ決め, 罰ゲーム 決め, クレーンゲーム, あみだくじ, ルーレット, 名前 抽選, ランダム 抽選, ミニゲーム, 無料ゲーム, ブラウザゲーム',
+            ogTitle='クレーンゲーム大脱出 🧸 コーヒーおごりのビリ決め',
+            ogDesc='つかまれたら脱出！最後に残った人形が今日のコーヒー当番 ☕ 今すぐ無料でプレイ。',
+            schemaAlt='コーヒーおごりのビリ決めミニゲーム',
+            schemaDesc='名前を入れると、最後までつかまれなかった1人が決まるクレーンゲームのビリ決めゲーム。',
+            schemaKeywords='コーヒーおごり, ビリ決め, 罰ゲーム 決め, クレーンゲーム, あみだくじ, ルーレット',
+            titleHtml='クレーンゲーム<br>大脱出',
+            subtitle='つかまれたら脱出！最後に残った人形がコーヒーをおごる ☕',
+            tagline='あみだくじ・ルーレット代わりのビリ決め — コーヒーおごり・罰ゲーム決め',
+            hud='🧸 残り', share='📸 結果カードを共有',
+            feedTitle='LIVE · 脱出実況', dangerTitle='☕ コーヒー候補',
+            playHint='☕ 名前を入れて見守るだけ。<br>自動クレーン · 予告つきTILT · 最後に残ったらコーヒー当番！',
+            demo='⚡ 名前なしで12体ですぐ体験',
+            loserEyebrow='☕ 今日のコーヒー当番', rankTitle='脱出順 · レシート'),
+    },
 }
 
 CARDS = {
-    'ko': ['괴물을 피해 끝까지 살아남기', '장애물을 넘어 300m 완주하기', '야구방망이로 날려버리고 최후의 1인이 되기'],
+    'ko': ['괴물을 피해 끝까지 살아남기', '장애물을 넘어 300m 완주하기', '야구방망이로 날려버리고 최후의 1인이 되기',
+           '집게에 뽑히면 탈출, 끝까지 남은 인형이 커피 쏘기'],
     'en': ['Outrun the monster and survive', 'Clear the obstacles, finish the 300m',
-           'Swing the bat, be the last one standing'],
-    'zh': ['躲开怪物活到最后', '越过障碍完成 300 米', '挥棒打飞对手，成为最后一人'],
-    'ja': ['モンスターから逃げ切って生き残る', '障害物を越えて300m完走', 'バットで吹き飛ばして最後の1人に'],
+           'Swing the bat, be the last one standing',
+           'Get grabbed to escape, the doll left behind buys coffee'],
+    'zh': ['躲开怪物活到最后', '越过障碍完成 300 米', '挥棒打飞对手，成为最后一人',
+           '被夹走就能逃脱，最后剩下的娃娃请喝咖啡'],
+    'ja': ['モンスターから逃げ切って生き残る', '障害物を越えて300m完走', 'バットで吹き飛ばして最後の1人に',
+           'つかまれたら脱出、最後に残った人形がコーヒーをおごる'],
 }
 
 # --------------------------------------------------------------- T dictionaries
@@ -766,7 +858,323 @@ T_OBSTACLE = {
   numName: n => n + '番'""",
 }
 
-T = {'monster-chase': T_MONSTER, 'obstacle-run': T_OBSTACLE, 'push-royale': T_PUSH}
+T_CLAW = {
+    'ko': """  gameName: '인형뽑기 대탈출',
+  mute: '소리 끄기',
+  unmute: '소리 켜기',
+  place: n => `${n}위`,
+  watchHint: '마지막까지 안 뽑힐 인형은?',
+  stageInsert: '🪙 INSERT COIN',
+  stageRush: '🚀 러시 타임',
+  stageMain: '🎯 본게임',
+  stageLast3: '💓 커피 후보 3명',
+  stageFinal: '🔥 결승',
+  stageReveal: '☕ 커피 당번 발표',
+  secs: s => `${s}초`,
+  odds: pct => `커피 확률 ${pct}%`,
+  cups: n => `🧾 ${n}잔`,
+  intro: '🪙 동전 투입! 집게 출동',
+  aim: name => `🎯 집게가 노린다… ${name}?`,
+  hover: '어? 방향을 튼다!',
+  grab: name => `잡았다!! ${name} 탈출하나?`,
+  chain: n => `줄줄이 ${n}명 딸려 나온다!`,
+  empty: '헛손질! 쏙 빠져나갔다',
+  slip: name => `아아… ${name} 떨어졌다! 다시 위험`,
+  teeter: '걸쳤다!!! 들어가냐 마냐…',
+  lipIn: name => `🎉 ${name} 걸쳐서 IN!`,
+  lipBack: name => `튕겨 나왔다! ${name} 😱`,
+  escaped: name => `🎉 ${name} 탈출!`,
+  fluke: name => `어부지리! ${name} 얼떨결에 탈출`,
+  duckDrop: '🦆 꽝 오리 투입!',
+  duck: '🦆 꽝! 오리를 뽑았다 ㅋㅋ',
+  tilt: '⚠️ TILT! 기계가 흔들려요',
+  tiltGo: '와르르! 자리가 섞였다',
+  spread: '탈탈~ 다 같이 바닥으로',
+  jackpot: '🎰 잭팟 집게! 줄줄이 구출',
+  blackout: '💡 정전…?!',
+  last3: names => `☕ 커피 후보: ${names}`,
+  final: (a, b) => `결승! ${a} vs ${b} — 먼저 뽑히는 쪽이 산다`,
+  lastCoin: '🪙 LAST COIN',
+  golden: '✨ 황금 집게 등장! 100% 잡는다',
+  shutter: '철컥! 출구 봉쇄',
+  closing: '⏱️ 영업 종료! 남은 인형 정리',
+  loserBanner: name => `☕ 오늘 커피는 ${name}!`,
+  loserSign: '☕ 제가 살게요…',
+  fSaved: '살았다!',
+  fIn: 'IN!',
+  fThud: '쿵!',
+  fWhiff: '쏙!',
+  fPick: '나 뽑아!',
+  taunts: ['아아 벤티로~', '샷 추가요 ㅋㅋ', '잘 마실게~', 'ㅋㅋㅋㅋ', '지갑 챙겨~'],
+  loserSub: n => `${n}명 중 끝까지 안 뽑힌 인형`,
+  loserStat: (g, s, lb) => (g ? `${g}번 잡혔다가 다 떨어짐 😭` : '한 번도 안 잡혔어요 😶') + (lb ? ` · 걸쳤다 튕겨 나옴 ${lb}회` : ''),
+  tagFluke: '어부지리',
+  tagChain: '줄줄이',
+  tagGolden: '황금 집게',
+  tagJackpot: '잭팟',
+  tagLip: '걸쳐서 IN',
+  tagClosing: '영업 종료',
+  loserRow: '☕ 결제',
+  receiptTotal: n => `합계 · 아메리카노 × ${n}잔`,
+  payer: name => `결제자: ${name}`,
+  stamp: '꼴찌 확정',
+  portraitAria: name => `${name} 인형이 커피 쟁반을 들고 울고 있어요`,
+  cardTitle: '🧸 인형뽑기 대탈출',
+  cardPlayers: n => `${n}명 참가`,
+  cardCoupon: 'COFFEE COUPON',
+  cardCoffee: '☕ 오늘 커피는',
+  cardPays: n => `아메리카노 × ${n}잔 결제`,
+  cardFirst: names => `🥇 1등 탈출 ${names}`,
+  cardCta: '설치 없이 바로 플레이 ▶',
+  shareCaption: (loser, n, first) => `☕ 오늘 커피는 ${loser}! (${n}명 중 꼴찌) · 🥇 1등 탈출 ${first}`,
+  cardBuilding: '결과 카드를 만드는 중이에요…',
+  cardFailed: '결과 카드를 만들지 못했어요 😢',
+  cardCopied: '결과 카드를 복사했어요! 채팅방에 붙여넣기 하세요 📋',
+  cardSaved: '결과 카드를 저장했어요 💾',
+  shareFailed: '공유에 실패했어요 😢',
+  rosterEmpty: '아직 참가자가 없어요',
+  hintEmpty: '이름을 입력하고 추가하기를 누르세요',
+  hintReady: n => `${n}명 참가 — 시작할 수 있어요!`,
+  hintNeedMore: n => `${n}명 이상부터 시작할 수 있어요`,
+  numName: n => n + '번'""",
+    'en': """  gameName: 'Claw Machine Escape',
+  mute: 'Mute',
+  unmute: 'Unmute',
+  place: n => `#${n}`,
+  watchHint: 'Which doll gets left behind?',
+  stageInsert: '🪙 INSERT COIN',
+  stageRush: '🚀 Rush time',
+  stageMain: '🎯 Main game',
+  stageLast3: '💓 Final three',
+  stageFinal: '🔥 Final',
+  stageReveal: '☕ Coffee duty',
+  secs: s => `${s}s`,
+  odds: pct => `Coffee odds ${pct}%`,
+  cups: n => `🧾 ${n} cups`,
+  intro: '🪙 Coin in! Here comes the claw',
+  aim: name => `🎯 The claw eyes… ${name}?`,
+  hover: 'Wait — it changed its mind!',
+  grab: name => `Got ${name}! Going out?`,
+  chain: n => `${n} dolls hooked in a chain!`,
+  empty: 'Whiff! Slipped right out',
+  slip: name => `Nooo… ${name} dropped! Back in danger`,
+  teeter: 'On the edge!!! In or out…',
+  lipIn: name => `🎉 ${name} tips in!`,
+  lipBack: name => `Bounced back! ${name} 😱`,
+  escaped: name => `🎉 ${name} is out!`,
+  fluke: name => `Lucky bounce! ${name} falls out`,
+  duckDrop: '🦆 Decoy duck dropped in!',
+  duck: '🦆 Dud! It grabbed the duck lol',
+  tilt: '⚠️ TILT! The machine is shaking',
+  tiltGo: 'Everything got shuffled!',
+  spread: 'Shake-shake — everyone to the floor',
+  jackpot: '🎰 Jackpot claw! Multi-rescue',
+  blackout: '💡 Blackout…?!',
+  last3: names => `☕ Coffee candidates: ${names}`,
+  final: (a, b) => `Final! ${a} vs ${b} — first one picked is safe`,
+  lastCoin: '🪙 LAST COIN',
+  golden: '✨ Golden claw! 100% grip',
+  shutter: 'Clank! Exit sealed',
+  closing: '⏱️ Closing time! Clearing the machine',
+  loserBanner: name => `☕ ${name} buys the coffee!`,
+  loserSign: '☕ My treat…',
+  fSaved: 'Safe!',
+  fIn: 'IN!',
+  fThud: 'Thud!',
+  fWhiff: 'Whiff!',
+  fPick: 'Pick me!',
+  taunts: ['Venti please~', 'Extra shot lol', 'Thanks for the coffee~', 'LOL', 'Get your wallet~'],
+  loserSub: n => `Left behind out of ${n}`,
+  loserStat: (g, s, lb) => (g ? `Grabbed ${g}× and dropped every time 😭` : 'Never even grabbed 😶') + (lb ? ` · bounced off the edge ${lb}×` : ''),
+  tagFluke: 'Lucky',
+  tagChain: 'Chain',
+  tagGolden: 'Golden',
+  tagJackpot: 'Jackpot',
+  tagLip: 'Tipped in',
+  tagClosing: 'Closing',
+  loserRow: '☕ Pays',
+  receiptTotal: n => `Total · Americano × ${n}`,
+  payer: name => `Paid by: ${name}`,
+  stamp: 'LAST PLACE',
+  portraitAria: name => `${name}'s doll crying with a coffee tray`,
+  cardTitle: '🧸 Claw Machine Escape',
+  cardPlayers: n => `${n} players`,
+  cardCoupon: 'COFFEE COUPON',
+  cardCoffee: '☕ Coffee is on',
+  cardPays: n => `pays for ${n} Americanos`,
+  cardFirst: names => `🥇 First out ${names}`,
+  cardCta: 'Play now, no install ▶',
+  shareCaption: (loser, n, first) => `☕ ${loser} buys the coffee! (last of ${n}) · 🥇 First out ${first}`,
+  cardBuilding: 'Building the result card…',
+  cardFailed: "Couldn't build the result card 😢",
+  cardCopied: 'Result card copied! Paste it in your chat 📋',
+  cardSaved: 'Result card saved 💾',
+  shareFailed: 'Sharing failed 😢',
+  rosterEmpty: 'No players yet',
+  hintEmpty: 'Type a name and hit Add',
+  hintReady: n => `${n} players — ready to start!`,
+  hintNeedMore: n => `Needs at least ${n} players to start`,
+  numName: n => '#' + n""",
+    'zh': """  gameName: '抓娃娃大逃脱',
+  mute: '静音',
+  unmute: '取消静音',
+  place: n => `第${n}名`,
+  watchHint: '最后谁会一直没被夹走？',
+  stageInsert: '🪙 INSERT COIN',
+  stageRush: '🚀 冲刺时间',
+  stageMain: '🎯 正赛',
+  stageLast3: '💓 咖啡候选 3 人',
+  stageFinal: '🔥 决赛',
+  stageReveal: '☕ 公布请客的人',
+  secs: s => `${s}秒`,
+  odds: pct => `请咖啡概率 ${pct}%`,
+  cups: n => `🧾 ${n}杯`,
+  intro: '🪙 投币！夹子出动',
+  aim: name => `🎯 夹子瞄准了…… ${name}？`,
+  hover: '咦？它换方向了！',
+  grab: name => `夹住了！！${name} 能逃出去吗？`,
+  chain: n => `一串带出 ${n} 个！`,
+  empty: '夹空了！一下子溜走了',
+  slip: name => `啊啊…… ${name} 掉下来了！又危险了`,
+  teeter: '卡在边上了！！！进还是不进……',
+  lipIn: name => `🎉 ${name} 从边上滚进去了！`,
+  lipBack: name => `弹回来了！${name} 😱`,
+  escaped: name => `🎉 ${name} 逃脱！`,
+  fluke: name => `渔翁得利！${name} 稀里糊涂逃脱了`,
+  duckDrop: '🦆 落空鸭子投入！',
+  duck: '🦆 落空！夹到了鸭子 哈哈',
+  tilt: '⚠️ TILT！机器在摇晃',
+  tiltGo: '哗啦！位置全被打乱了',
+  spread: '抖一抖～大家都落到底层',
+  jackpot: '🎰 大奖夹子！一串全救出',
+  blackout: '💡 停电了……？！',
+  last3: names => `☕ 咖啡候选：${names}`,
+  final: (a, b) => `决赛！${a} vs ${b} — 先被夹走的一方得救`,
+  lastCoin: '🪙 LAST COIN',
+  golden: '✨ 黄金夹子登场！100% 夹住',
+  shutter: '咔嚓！出口封锁',
+  closing: '⏱️ 打烊了！清理剩下的娃娃',
+  loserBanner: name => `☕ 今天的咖啡由 ${name} 请！`,
+  loserSign: '☕ 我来请客……',
+  fSaved: '得救了！',
+  fIn: 'IN!',
+  fThud: '咚！',
+  fWhiff: '嗖！',
+  fPick: '夹我！',
+  taunts: ['要超大杯哦～', '再加一份浓缩 哈哈', '谢谢请客～', '哈哈哈哈', '记得带钱包～'],
+  loserSub: n => `${n} 人中一直没被夹走的娃娃`,
+  loserStat: (g, s, lb) => (g ? `被夹住 ${g} 次，每次都掉了下来 😭` : '一次都没被夹到 😶') + (lb ? ` · 卡边弹回 ${lb} 次` : ''),
+  tagFluke: '渔翁得利',
+  tagChain: '一串带出',
+  tagGolden: '黄金夹子',
+  tagJackpot: '大奖',
+  tagLip: '卡边进洞',
+  tagClosing: '打烊',
+  loserRow: '☕ 买单',
+  receiptTotal: n => `合计 · 美式咖啡 × ${n}杯`,
+  payer: name => `付款人：${name}`,
+  stamp: '垫底确定',
+  portraitAria: name => `${name} 的娃娃端着咖啡托盘在哭`,
+  cardTitle: '🧸 抓娃娃大逃脱',
+  cardPlayers: n => `${n} 人参加`,
+  cardCoupon: 'COFFEE COUPON',
+  cardCoffee: '☕ 今天请喝咖啡的是',
+  cardPays: n => `买单 美式咖啡 × ${n}杯`,
+  cardFirst: names => `🥇 最先逃脱 ${names}`,
+  cardCta: '免安装，马上开玩 ▶',
+  shareCaption: (loser, n, first) => `☕ 今天的咖啡由 ${loser} 请！（${n} 人中垫底）· 🥇 最先逃脱 ${first}`,
+  cardBuilding: '正在生成结果卡…',
+  cardFailed: '结果卡生成失败 😢',
+  cardCopied: '结果卡已复制！粘贴到聊天里吧 📋',
+  cardSaved: '结果卡已保存 💾',
+  shareFailed: '分享失败 😢',
+  rosterEmpty: '还没有参与者',
+  hintEmpty: '输入名字后点添加',
+  hintReady: n => `${n} 人参加 — 可以开始了！`,
+  hintNeedMore: n => `至少要 ${n} 人才能开始`,
+  numName: n => n + ' 号'""",
+    'ja': """  gameName: 'クレーンゲーム大脱出',
+  mute: 'ミュート',
+  unmute: 'ミュート解除',
+  place: n => `${n}位`,
+  watchHint: '最後までつかまれない人形は？',
+  stageInsert: '🪙 INSERT COIN',
+  stageRush: '🚀 ラッシュタイム',
+  stageMain: '🎯 本番',
+  stageLast3: '💓 コーヒー候補 3人',
+  stageFinal: '🔥 決勝',
+  stageReveal: '☕ コーヒー当番発表',
+  secs: s => `${s}秒`,
+  odds: pct => `コーヒー確率 ${pct}%`,
+  cups: n => `🧾 ${n}杯`,
+  intro: '🪙 コイン投入！クレーン出動',
+  aim: name => `🎯 クレーンが狙う… ${name}？`,
+  hover: 'あれ？向きを変えた！',
+  grab: name => `つかんだ！！${name} 脱出なるか？`,
+  chain: n => `芋づる式に ${n}体つれてきた！`,
+  empty: 'スカッ！するりと抜けた',
+  slip: name => `ああ… ${name} 落ちた！また危ない`,
+  teeter: '引っかかった！！！入るか入らないか…',
+  lipIn: name => `🎉 ${name} ふちから転がってIN！`,
+  lipBack: name => `はね返された！${name} 😱`,
+  escaped: name => `🎉 ${name} 脱出！`,
+  fluke: name => `漁夫の利！${name} ついでに脱出`,
+  duckDrop: '🦆 ハズレのアヒル投入！',
+  duck: '🦆 ハズレ！アヒルをつかんだ（笑）',
+  tilt: '⚠️ TILT！マシンが揺れる',
+  tiltGo: 'ガラガラ！並びがシャッフルされた',
+  spread: 'ユサユサ〜みんな床へ',
+  jackpot: '🎰 ジャックポットクレーン！まとめて救出',
+  blackout: '💡 停電…？！',
+  last3: names => `☕ コーヒー候補：${names}`,
+  final: (a, b) => `決勝！${a} vs ${b} — 先につかまれた方が助かる`,
+  lastCoin: '🪙 LAST COIN',
+  golden: '✨ 黄金クレーン登場！100%つかむ',
+  shutter: 'ガチャン！出口封鎖',
+  closing: '⏱️ 閉店時間！残った人形を片付け',
+  loserBanner: name => `☕ 今日のコーヒーは ${name}！`,
+  loserSign: '☕ 私がおごります…',
+  fSaved: '助かった！',
+  fIn: 'IN!',
+  fThud: 'ドスン！',
+  fWhiff: 'スカッ！',
+  fPick: 'つかんで！',
+  taunts: ['ベンティでね〜', 'ショット追加で（笑）', 'ごちそうさま〜', 'ｗｗｗ', '財布忘れずに〜'],
+  loserSub: n => `${n}人の中で最後までつかまれなかった人形`,
+  loserStat: (g, s, lb) => (g ? `${g}回つかまれて全部落ちた 😭` : '一度もつかまれなかった 😶') + (lb ? ` · ふちで跳ね返り ${lb}回` : ''),
+  tagFluke: '漁夫の利',
+  tagChain: '芋づる',
+  tagGolden: '黄金クレーン',
+  tagJackpot: 'ジャックポット',
+  tagLip: 'ふちからIN',
+  tagClosing: '閉店',
+  loserRow: '☕ お会計',
+  receiptTotal: n => `合計 · アメリカーノ × ${n}杯`,
+  payer: name => `お支払い：${name}`,
+  stamp: 'ビリ確定',
+  portraitAria: name => `${name}の人形がコーヒーのトレイを持って泣いています`,
+  cardTitle: '🧸 クレーンゲーム大脱出',
+  cardPlayers: n => `${n}人参加`,
+  cardCoupon: 'COFFEE COUPON',
+  cardCoffee: '☕ 今日のコーヒーは',
+  cardPays: n => `アメリカーノ × ${n}杯 お支払い`,
+  cardFirst: names => `🥇 1番に脱出 ${names}`,
+  cardCta: 'インストール不要ですぐプレイ ▶',
+  shareCaption: (loser, n, first) => `☕ 今日のコーヒーは ${loser}！（${n}人中ビリ）· 🥇 1番に脱出 ${first}`,
+  cardBuilding: '結果カードを作成中…',
+  cardFailed: '結果カードを作成できませんでした 😢',
+  cardCopied: '結果カードをコピーしました！チャットに貼り付けてください 📋',
+  cardSaved: '結果カードを保存しました 💾',
+  shareFailed: '共有に失敗しました 😢',
+  rosterEmpty: 'まだ参加者がいません',
+  hintEmpty: '名前を入力して追加を押してください',
+  hintReady: n => `${n}人参加 — スタートできます！`,
+  hintNeedMore: n => `${n}人以上からスタートできます`,
+  numName: n => n + '番'""",
+}
+
+T = {'monster-chase': T_MONSTER, 'obstacle-run': T_OBSTACLE, 'push-royale': T_PUSH,
+     'claw-escape': T_CLAW}
 
 # ------------------------------------------------------------------- templates
 GAME_HEAD = Template("""<!DOCTYPE html>
@@ -899,6 +1307,21 @@ def game_page(slug, lang):
                '<section id="raceBoard" hidden><div class="raceBoardTitle"><b>LIVE</b><span id="raceEvent"></span></div>\n'
                '<div class="courseMeter"><div id="courseProgress"></div></div><div id="raceLeaders"></div></section>\n')
         crown, extra = '🏆', ''
+    elif slug == 'claw-escape':
+        hud = (f'<div id="hud" hidden>\n'
+               f'  <div class="pill dollPill">{m["hud"]} <span class="big" id="aliveCount">0</span>'
+               '<span id="coffeeOdds" class="odds"></span></div>\n'
+               '  <div class="pill stagePill"><span id="stageStatus"></span><span id="cupTab" class="cupTab"></span></div>\n'
+               '</div>\n'
+               '<div id="ffChip" hidden>⏩ ×1.8</div>\n'
+               f'<section id="matchFeed" hidden aria-label="{m["feedTitle"]}">\n'
+               f'  <div class="feedTitle">{m["feedTitle"]}</div>\n'
+               '  <strong id="matchHeadline"></strong>\n'
+               f'  <div id="dangerChips" hidden aria-label="{m["dangerTitle"]}"></div>\n'
+               '  <div id="escapeFeed" role="log" aria-live="polite" aria-relevant="additions"></div>\n'
+               '</section>\n')
+        crown = '☕'
+        extra = f'        <button class="shareBtn" id="shareBtn" type="button">{m["share"]}</button>\n'
     else:
         hud = (f'<div id="hud" hidden>\n  <div class="pill">{m["hud"]} <span class="big" id="aliveCount">0</span></div>\n'
                '  <div id="stageStatus" class="pill stageStatus"></div>\n</div>\n'
@@ -909,8 +1332,8 @@ def game_page(slug, lang):
         crown = '👑'
         extra = f'  <button class="shareBtn" id="shareBtn" type="button">{m["share"]}</button>\n'
 
-    toast = '<div id="toast" role="status" aria-live="polite"></div>\n' if slug == 'push-royale' else ''
-    share_url = f"  shareUrl: '{page_url(slug, lang)}',\n" if slug == 'push-royale' else ''
+    toast = '<div id="toast" role="status" aria-live="polite"></div>\n' if slug in ('push-royale', 'claw-escape') else ''
+    share_url = f"  shareUrl: '{page_url(slug, lang)}',\n" if slug in ('push-royale', 'claw-escape') else ''
     win_screen = WIN_SCREEN.substitute(crown=crown, again=r['again'], extra=extra)
     effects_script = ''
     play_hint = f'<p class="arenaIntro">{m.get("playHint", "")}</p>\n'
@@ -943,6 +1366,31 @@ def game_page(slug, lang):
 '''
         effects_script = f'<script src="{game_asset("push-royale-fx.js")}"></script>\n'
         game_script = game_asset('push-royale.js')
+    if slug == 'claw-escape':
+        play_hint = f'<p class="arenaIntro">{m["playHint"]}</p>\n'
+        demo_button = f'  <button class="demoBtn" id="demoBtn" type="button">{m["demo"]}</button>\n'
+        win_screen = f'''<div class="overlay hidden loserWin" id="winScreen">
+  <div class="winnerLayout">
+    <div class="winnerHero loserHero">
+      <div class="winnerEyebrow">{m['loserEyebrow']}</div>
+      <canvas id="loserPortrait" role="img"></canvas>
+      <div id="winName">-</div>
+      <div id="loserSub"></div>
+      <div id="loserStat"></div>
+    </div>
+    <section class="winnerBoard receipt" aria-labelledby="rankTitle">
+      <h2 id="rankTitle">{m['rankTitle']}</h2>
+      <ol class="rankList" id="rankList"></ol>
+      <div class="receiptTotal" id="receiptTotal"></div>
+      <div class="winnerActions">
+        <button class="playBtn win" id="againBtn">{r['again']}</button>
+{extra}      </div>
+    </section>
+  </div>
+</div>
+'''
+        effects_script = f'<script src="{game_asset("claw-escape-fx.js")}"></script>\n'
+        game_script = game_asset('claw-escape.js')
 
     return head + f"""<body>
 <canvas id="game"></canvas>
@@ -1071,7 +1519,7 @@ def index_page(lang):
         hasPart=parts, cards=cards, langLabel=LANG_LABEL[lang], langLinks=links)
 
 
-def sitemap(lastmod='2026-08-11'):
+def sitemap(lastmod='2026-09-23'):
     out = ['<?xml version="1.0" encoding="UTF-8"?>',
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"',
            '        xmlns:xhtml="http://www.w3.org/1999/xhtml">']
